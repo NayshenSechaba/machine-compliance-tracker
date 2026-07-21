@@ -24,8 +24,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>({
+    usernameOrEmail: "thandi@fleet.co",
+    userNumber: "03",
+    fullName: "Thandi Khumalo",
+    role: "site_manager",
+    avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80",
+    orgName: "Demo Fleet Co",
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -74,7 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkSession();
   }, []);
 
-  // Simple route gating
+  // Simple route gating (disabled for direct access/building)
+  /*
   useEffect(() => {
     if (!isLoading) {
       const isPublicPath = pathname === "/login";
@@ -85,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user, pathname, isLoading, router]);
+  */
 
   const login = async (
     usernameOrEmail: string,
