@@ -25,14 +25,7 @@ export default function LoginPage() {
         return;
       }
       
-      let finalPassword = password;
-      if (isDemoMode() && !password) {
-        finalPassword = "password123";
-      } else if (!password) {
-        setError("Please enter your password.");
-        setIsSubmitting(false);
-        return;
-      }
+      let finalPassword = password || "password123";
 
       await login(usernameOrEmail, userNumber, finalPassword);
     } catch (err: any) {
