@@ -24,14 +24,18 @@ export const metadata: Metadata = {
   description: "Pre-start checklists and expiry tracking for South African fleets and sites.",
 };
 
+import { AuthProvider } from "@/lib/auth";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${display.variable} ${body.variable} ${mono.variable} font-body antialiased`}>
-        <div className="min-h-screen flex flex-col">
-          <Nav />
-          <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 pb-24 sm:px-6 sm:pb-6">{children}</main>
-        </div>
+        <AuthProvider>
+          <div className="min-h-screen flex flex-col">
+            <Nav />
+            <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-6 pb-24 sm:px-6 sm:pb-6">{children}</main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
