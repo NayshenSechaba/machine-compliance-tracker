@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoData";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -23,13 +24,17 @@ export default function LoginPage() {
         setIsSubmitting(false);
         return;
       }
-      if (!password) {
+      
+      let finalPassword = password;
+      if (isDemoMode() && !password) {
+        finalPassword = "password123";
+      } else if (!password) {
         setError("Please enter your password.");
         setIsSubmitting(false);
         return;
       }
 
-      await login(usernameOrEmail, userNumber, password);
+      await login(usernameOrEmail, userNumber, finalPassword);
     } catch (err: any) {
       setError("Login failed. Please verify your credentials and try again.");
     } finally {
