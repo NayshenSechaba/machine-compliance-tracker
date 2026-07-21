@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background-color: #F2F4F3;
+  color: #10151B;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #E8A93C;
+  outline-offset: 2px;
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
