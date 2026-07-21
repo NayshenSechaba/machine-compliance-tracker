@@ -8,6 +8,7 @@ export type Asset = {
   asset_type: AssetType;
   odometer_or_hours: number;
   status: AssetStatus;
+  photo_url?: string | null;
 };
 
 export type Operator = {
@@ -15,6 +16,7 @@ export type Operator = {
   full_name: string;
   phone: string | null;
   role: string;
+  avatar_url?: string | null;
 };
 
 export type ComplianceStatus = "expired" | "critical" | "warning" | "upcoming" | "ok";
@@ -35,7 +37,9 @@ export type ComplianceItem = {
   reference_number: string | null;
   expiry_date: string;
   operator_name: string | null;
+  operator_avatar?: string | null;
   asset_name: string | null;
+  asset_photo?: string | null;
   days_to_expiry: number;
   status: ComplianceStatus;
   document_url?: string | null;

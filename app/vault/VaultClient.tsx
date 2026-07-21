@@ -195,10 +195,26 @@ export default function VaultClient({ initialItems }: VaultClientProps) {
               className="bg-white border border-fogDark rounded-xl p-4 shadow-sm hover:border-steelLight/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold text-sm text-ink truncate">
-                    {item.operator_name ?? item.asset_name ?? "Unassigned"}
-                  </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {item.operator_avatar && (
+                      <img
+                        src={item.operator_avatar}
+                        alt={item.operator_name || "Operator"}
+                        className="w-8 h-8 rounded-full object-cover border border-fogDark shrink-0"
+                      />
+                    )}
+                    {item.asset_photo && (
+                      <img
+                        src={item.asset_photo}
+                        alt={item.asset_name || "Asset"}
+                        className="w-10 h-7 rounded object-cover border border-fogDark shrink-0"
+                      />
+                    )}
+                    <p className="font-bold text-sm text-ink truncate">
+                      {item.operator_name ?? item.asset_name ?? "Unassigned"}
+                    </p>
+                  </div>
                   <StatusBadge status={item.status} />
                   <VerificationBadge
                     status={item.verification_status}

@@ -42,6 +42,13 @@ export default function Nav() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
+            {user.avatarUrl && (
+              <img
+                src={user.avatarUrl}
+                alt={user.fullName}
+                className="w-8 h-8 rounded-full border border-white/20 object-cover shrink-0"
+              />
+            )}
             <div className="text-right hidden sm:block">
               <p className="text-xs font-semibold text-white">{user.fullName}</p>
               <p className="text-[10px] font-mono text-white/50 capitalize">{user.role.replace(/_/g, " ")}</p>

@@ -4,15 +4,15 @@ export const isDemoMode = () =>
   !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export const demoAssets: Asset[] = [
-  { id: "a1", name: "Volvo FH16 — Fleet 04", registration: "ND 45 GP", asset_type: "truck", odometer_or_hours: 182340, status: "in_service" },
-  { id: "a2", name: "CAT 336D Excavator", registration: "RIG-07", asset_type: "excavator", odometer_or_hours: 6120, status: "in_service" },
-  { id: "a3", name: "Isuzu FTR — Fleet 11", registration: "ND 88 HP", asset_type: "truck", odometer_or_hours: 94210, status: "blocked" },
+  { id: "a1", name: "Volvo FH16 — Fleet 04", registration: "ND 45 GP", asset_type: "truck", odometer_or_hours: 182340, status: "in_service", photo_url: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=350&q=80" },
+  { id: "a2", name: "CAT 336D Excavator", registration: "RIG-07", asset_type: "excavator", odometer_or_hours: 6120, status: "in_service", photo_url: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?auto=format&fit=crop&w=350&q=80" },
+  { id: "a3", name: "Isuzu FTR — Fleet 11", registration: "ND 88 HP", asset_type: "truck", odometer_or_hours: 94210, status: "blocked", photo_url: "https://images.unsplash.com/photo-1516576882236-0568019689e4?auto=format&fit=crop&w=350&q=80" },
 ];
 
 export const demoOperators: Operator[] = [
-  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver" },
-  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver" },
-  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager" },
+  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" },
+  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80" },
+  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager", avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80" },
 ];
 
 const today = new Date();
@@ -31,6 +31,7 @@ export const demoCompliance: ComplianceItem[] = [
     reference_number: "PRDP-88213",
     expiry_date: addDays(5),
     operator_name: "Sipho Ndlovu",
+    operator_avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
     asset_name: null,
     days_to_expiry: 5,
     status: statusFor(5) as any,
@@ -52,6 +53,7 @@ export const demoCompliance: ComplianceItem[] = [
     expiry_date: addDays(-3),
     operator_name: null,
     asset_name: "Isuzu FTR — Fleet 11",
+    asset_photo: "https://images.unsplash.com/photo-1516576882236-0568019689e4?auto=format&fit=crop&w=350&q=80",
     days_to_expiry: -3,
     status: statusFor(-3) as any,
     document_name: "roadworthy_isuzu_fleet11.pdf",
@@ -73,6 +75,7 @@ export const demoCompliance: ComplianceItem[] = [
     expiry_date: addDays(20),
     operator_name: null,
     asset_name: "Volvo FH16 — Fleet 04",
+    asset_photo: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=350&q=80",
     days_to_expiry: 20,
     status: statusFor(20) as any,
     document_name: "volvo_licence_disc.jpg",
@@ -94,6 +97,7 @@ export const demoCompliance: ComplianceItem[] = [
     reference_number: "DL-40213",
     expiry_date: addDays(45),
     operator_name: "Ben van der Merwe",
+    operator_avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
     asset_name: null,
     days_to_expiry: 45,
     status: statusFor(45) as any,
@@ -105,6 +109,7 @@ export const demoCompliance: ComplianceItem[] = [
     reference_number: "MSC-1187",
     expiry_date: addDays(120),
     operator_name: "Thandi Khumalo",
+    operator_avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80",
     asset_name: null,
     days_to_expiry: 120,
     status: statusFor(120) as any,

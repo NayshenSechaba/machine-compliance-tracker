@@ -104,6 +104,50 @@ export default function ChecklistPage() {
         </Field>
       </div>
 
+      {/* Visual Alignment Panel */}
+      {(() => {
+        const selectedAsset = assets.find((a) => a.id === assetId);
+        const selectedOperator = operators.find((o) => o.id === operatorId);
+
+        if (!selectedAsset && !selectedOperator) return null;
+
+        return (
+          <div className="bg-slate-50 border border-fogDark rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              {selectedAsset?.photo_url && (
+                <img
+                  src={selectedAsset.photo_url}
+                  alt={selectedAsset.name}
+                  className="w-16 h-12 rounded object-cover border border-fogDark shadow-sm shrink-0"
+                />
+              )}
+              <div>
+                <p className="text-[10px] font-mono text-steelLight uppercase tracking-wider">Asset Selected</p>
+                <p className="text-xs font-bold text-ink">{selectedAsset?.name || "No asset"}</p>
+                <p className="text-[10px] text-steel font-mono">{selectedAsset?.registration}</p>
+              </div>
+            </div>
+
+            <div className="hidden sm:block text-slate-300 font-mono">⇄</div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end sm:justify-start">
+              <div className="text-right sm:text-left">
+                <p className="text-[10px] font-mono text-steelLight uppercase tracking-wider">Operator Assigned</p>
+                <p className="text-xs font-bold text-ink">{selectedOperator?.full_name || "No driver"}</p>
+                <p className="text-[10px] text-steel capitalize">{selectedOperator?.role}</p>
+              </div>
+              {selectedOperator?.avatar_url && (
+                <img
+                  src={selectedOperator.avatar_url}
+                  alt={selectedOperator.full_name}
+                  className="w-12 h-12 rounded-full object-cover border border-fogDark shadow-sm shrink-0"
+                />
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       <Field label="Odometer / engine hours">
         <input
           type="number"
