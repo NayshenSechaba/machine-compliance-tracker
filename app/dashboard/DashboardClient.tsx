@@ -92,10 +92,8 @@ export default function DashboardClient({
     // Automatically seed a dummy compliance item for the new driver so they show in vault
     const newComplianceItem: ComplianceItem = {
       id: `custom-comp-op-${Date.now()}`,
-      operator_id: registered.id,
       operator_name: registered.full_name,
       operator_avatar: registered.avatar_url || undefined,
-      asset_id: null,
       asset_name: null,
       asset_photo: null,
       item_type: registered.role === "driver" ? "prdp" : "induction",
@@ -103,7 +101,7 @@ export default function DashboardClient({
       expiry_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 60 days
       days_to_expiry: 60,
       status: "ok",
-      verification_status: "unuploaded",
+      verification_status: "pending_upload",
       verified_by: null,
       verified_at: null,
       rejection_reason: null,
