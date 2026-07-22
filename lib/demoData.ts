@@ -1,7 +1,6 @@
 import { Asset, ComplianceItem, Operator } from "./types";
 
-export const isDemoMode = () =>
-  !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const isDemoMode = () => true;
 
 export const demoAssets: Asset[] = [
   { id: "a1", name: "Volvo FH16 — Fleet 04", registration: "ND 45 GP", asset_type: "truck", odometer_or_hours: 182340, status: "in_service", photo_url: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=350&q=80" },
