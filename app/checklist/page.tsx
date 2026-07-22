@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isDemoMode, demoAssets, demoOperators } from "@/lib/demoData";
 import { CHECKLIST_COMPONENTS } from "@/lib/types";
@@ -9,15 +9,48 @@ type ComponentState = "unchecked" | "pass" | "fail";
 
 export default function ChecklistPage() {
   const demo = isDemoMode();
-  const assets = demoAssets; // in production, fetch via a server component + pass down, or a client fetch on mount
-  const operators = demoOperators;
+  const [assets, setAssets] = useState(demoAssets);
+  const [operators, setOperators] = useState(demoOperators);
 
-  const [assetId, setAssetId] = useState(assets[0]?.id ?? "");
-  const [operatorId, setOperatorId] = useState(operators[0]?.id ?? "");
+  const [assetId, setAssetId] = useState("");
+  const [operatorId, setOperatorId] = useState("");
   const [odometer, setOdometer] = useState("");
   const [states, setStates] = useState<Record<string, ComponentState>>(
     Object.fromEntries(CHECKLIST_COMPONENTS.map((c) => [c.key, "unchecked"]))
   );
+
+  // Load custom assets and operators
+  useEffect(() => {
+    const storedAssets = localStorage.getItem("ops_gate_assets");
+    if (storedAssets) {
+      try {
+        const parsed = JSON.parse(storedAssets) as any[];
+        const ids = new Set(demoAssets.map((a) => a.id));
+        const merged = [...demoAssets, ...parsed.filter((p) => !ids.has(p.id))];
+        setAssets(merged);
+        if (merged.length) setAssetId(merged[0].id);
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (demoAssets.length) setAssetId(demoAssets[0].id);
+    }
+
+    const storedOperators = localStorage.getItem("ops_gate_operators");
+    if (storedOperators) {
+      try {
+        const parsed = JSON.parse(storedOperators) as any[];
+        const ids = new Set(demoOperators.map((o) => o.id));
+        const merged = [...demoOperators, ...parsed.filter((p) => !ids.has(p.id))];
+        setOperators(merged);
+        if (merged.length) setOperatorId(merged[0].id);
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      if (demoOperators.length) setOperatorId(demoOperators[0].id);
+    }
+  }, []);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<"cleared" | "blocked" | null>(null);

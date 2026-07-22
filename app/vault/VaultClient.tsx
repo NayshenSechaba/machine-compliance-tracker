@@ -20,6 +20,22 @@ export default function VaultClient({ initialItems }: VaultClientProps) {
   const [selectedVerifyItem, setSelectedVerifyItem] = useState<ComplianceItem | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
 
+  useEffect(() => {
+    const storedCompliance = localStorage.getItem("ops_gate_compliance");
+    if (storedCompliance) {
+      try {
+        const parsed = JSON.parse(storedCompliance) as ComplianceItem[];
+        const ids = new Set(initialItems.map((i) => i.id));
+        setItems([
+          ...initialItems,
+          ...parsed.filter((p) => !ids.has(p.id)),
+        ]);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [initialItems]);
+
   const pendingReviewCount = items.filter(
     (i) => i.verification_status === "pending_verification"
   ).length;
