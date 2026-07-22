@@ -17,6 +17,7 @@ export type Operator = {
   phone: string | null;
   role: string;
   avatar_url?: string | null;
+  user_number?: string | null;
 };
 
 export type ComplianceStatus = "expired" | "critical" | "warning" | "upcoming" | "ok";

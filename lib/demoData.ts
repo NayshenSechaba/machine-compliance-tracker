@@ -9,9 +9,9 @@ export const demoAssets: Asset[] = [
 ];
 
 export const demoOperators: Operator[] = [
-  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" },
-  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80" },
-  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager", avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80" },
+  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", user_number: "01" },
+  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80", user_number: "02" },
+  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager", avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80", user_number: "03" },
 ];
 
 const today = new Date();

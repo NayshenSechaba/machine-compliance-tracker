@@ -19,6 +19,7 @@ const PRESET_AVATARS = [
 export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperatorModalProps) {
   const [fullName, setFullName] = useState("");
   const [userNumber, setUserNumber] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<"driver" | "site_manager" | "mechanic">("driver");
   const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0].url);
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
@@ -35,6 +36,7 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
     onSave({
       full_name: fullName.trim(),
       user_number: userNumber.trim(),
+      phone: phone.trim() || null,
       role,
       avatar_url: avatar_url || null,
     });
@@ -42,6 +44,7 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
     // Reset fields
     setFullName("");
     setUserNumber("");
+    setPhone("");
     setRole("driver");
     setSelectedAvatar(PRESET_AVATARS[0].url);
     setCustomAvatarUrl("");
@@ -79,6 +82,17 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Lucas Mokoena"
               className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-steel">Phone Number</label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. +27 82 123 4567"
+              className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
             />
           </div>
 
