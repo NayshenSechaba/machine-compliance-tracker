@@ -3,15 +3,15 @@ import { Asset, ComplianceItem, Operator } from "./types";
 export const isDemoMode = () => true;
 
 export const demoAssets: Asset[] = [
-  { id: "a1", name: "Volvo FH16 — Fleet 04", registration: "ND 45 GP", asset_type: "truck", odometer_or_hours: 182340, status: "in_service", photo_url: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=350&q=80" },
-  { id: "a2", name: "CAT 336D Excavator", registration: "RIG-07", asset_type: "excavator", odometer_or_hours: 6120, status: "in_service", photo_url: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?auto=format&fit=crop&w=350&q=80" },
-  { id: "a3", name: "Isuzu FTR — Fleet 11", registration: "ND 88 HP", asset_type: "truck", odometer_or_hours: 94210, status: "blocked", photo_url: "https://images.unsplash.com/photo-1516576882236-0568019689e4?auto=format&fit=crop&w=350&q=80" },
+  { id: "a1", name: "Volvo FH16 — Fleet 04", registration: "ND 45 GP", asset_type: "truck", category: "extra_heavy_combination_code_ec", make_model: "Volvo FH16", odometer_or_hours: 182340, status: "in_service", photo_url: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=350&q=80" },
+  { id: "a2", name: "CAT 336D Excavator", registration: "RIG-07", asset_type: "excavator", category: "earthmoving_heavy_equipment", make_model: "CAT 336D", odometer_or_hours: 6120, status: "in_service", photo_url: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?auto=format&fit=crop&w=350&q=80" },
+  { id: "a3", name: "Isuzu FTR — Fleet 11", registration: "ND 88 HP", asset_type: "truck", category: "heavy_vehicle_code_c1", make_model: "Isuzu FTR", odometer_or_hours: 94210, status: "blocked", photo_url: "https://images.unsplash.com/photo-1516576882236-0568019689e4?auto=format&fit=crop&w=350&q=80" },
 ];
 
 export const demoOperators: Operator[] = [
-  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", user_number: "01" },
-  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80", user_number: "02" },
-  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager", avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80", user_number: "03" },
+  { id: "o1", full_name: "Sipho Ndlovu", phone: "+27 82 123 4567", role: "driver", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80", user_number: "01", licence_code: "C1", medical_expiry: "2027-12-01" },
+  { id: "o2", full_name: "Ben van der Merwe", phone: "+27 82 765 4321", role: "driver", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80", user_number: "02", licence_code: "EC", medical_expiry: "2027-08-15" },
+  { id: "o3", full_name: "Thandi Khumalo", phone: "+27 82 999 8888", role: "site_manager", avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80", user_number: "03", licence_code: "B", medical_expiry: "2028-02-10" },
 ];
 
 const today = new Date();

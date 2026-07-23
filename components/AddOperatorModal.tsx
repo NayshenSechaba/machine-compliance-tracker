@@ -20,6 +20,8 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
   const [fullName, setFullName] = useState("");
   const [userNumber, setUserNumber] = useState("");
   const [phone, setPhone] = useState("");
+  const [licenceCode, setLicenceCode] = useState("B");
+  const [medicalExpiry, setMedicalExpiry] = useState("");
   const [role, setRole] = useState<"driver" | "site_manager" | "mechanic">("driver");
   const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0].url);
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
@@ -31,20 +33,24 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
     e.preventDefault();
     if (!fullName.trim() || !userNumber.trim()) return;
 
-    const avatar_url = useCustomAvatar ? customAvatarUrl.trim() : selectedAvatar;
+    const avatarUrl = useCustomAvatar ? customAvatarUrl.trim() : selectedAvatar;
 
     onSave({
       full_name: fullName.trim(),
       user_number: userNumber.trim(),
       phone: phone.trim() || null,
       role,
-      avatar_url: avatar_url || null,
+      avatar_url: avatarUrl || null,
+      licence_code: licenceCode,
+      medical_expiry: medicalExpiry || null,
     });
 
     // Reset fields
     setFullName("");
     setUserNumber("");
     setPhone("");
+    setLicenceCode("B");
+    setMedicalExpiry("");
     setRole("driver");
     setSelectedAvatar(PRESET_AVATARS[0].url);
     setCustomAvatarUrl("");
@@ -120,6 +126,37 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
                 <option value="site_manager">Site Manager</option>
                 <option value="mechanic">Mechanic</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Driving Licence Code</label>
+              <select
+                value={licenceCode}
+                onChange={(e) => setLicenceCode(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              >
+                <option value="A">Code A / A1 (Motorcycles)</option>
+                <option value="B">Code B (Light Motor Vehicle)</option>
+                <option value="EB">Code EB (Light Combination)</option>
+                <option value="C1">Code C1 (Rigid Truck &lt;= 16T)</option>
+                <option value="C">Code C (Rigid Truck &gt; 16T)</option>
+                <option value="EC1">Code EC1 (Combination &lt;= 16T)</option>
+                <option value="EC">Code EC (Articulated / Superlink)</option>
+                <option value="HE">Heavy Equipment Operator Ticket</option>
+                <option value="MEWP">MEWP Operator Card</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Medical Certificate Expiry</label>
+              <input
+                type="date"
+                value={medicalExpiry}
+                onChange={(e) => setMedicalExpiry(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
+              />
             </div>
           </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Asset, ComplianceItem, Operator } from "@/lib/types";
+import { Asset, ComplianceItem, Operator, DefectRecord } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import AddAssetModal from "@/components/AddAssetModal";
 import AddOperatorModal from "@/components/AddOperatorModal";
@@ -21,17 +21,17 @@ export default function DashboardClient({
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [operators, setOperators] = useState<Operator[]>(initialOperators);
   const [compliance, setCompliance] = useState<ComplianceItem[]>(initialCompliance);
+  const [defects, setDefects] = useState<DefectRecord[]>([]);
 
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
 
-  // Load custom assets & operators from local storage
+  // Load custom assets, operators, and defects from local storage
   useEffect(() => {
     const storedAssets = localStorage.getItem("ops_gate_assets");
     if (storedAssets) {
       try {
         const parsed = JSON.parse(storedAssets) as Asset[];
-        // Merge without duplicate IDs
         const ids = new Set(initialAssets.map((a) => a.id));
         const merged = [
           ...initialAssets,
@@ -53,6 +53,15 @@ export default function DashboardClient({
           ...parsed.filter((p) => !ids.has(p.id)),
         ];
         setOperators(merged);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const storedDefects = localStorage.getItem("ops_gate_defects");
+    if (storedDefects) {
+      try {
+        setDefects(JSON.parse(storedDefects));
       } catch (e) {
         console.error(e);
       }
@@ -112,6 +121,54 @@ export default function DashboardClient({
     const updatedCompliance = [...compliance, newComplianceItem];
     setCompliance(updatedCompliance);
     localStorage.setItem("ops_gate_compliance", JSON.stringify(updatedCompliance.filter((c) => c.id.startsWith("custom-"))));
+  };
+
+  // Resolve a defect log
+  const handleResolveDefect = (defectId: string) => {
+    const updatedDefects = defects.map((def) => {
+      if (def.id === defectId) {
+        return { ...def, status: "resolved" as const, resolved_at: new Date().toISOString() };
+      }
+      return def;
+    });
+
+    setDefects(updatedDefects);
+    localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
+
+    // Check if the asset has any other OPEN defects. If all are resolved, clear its 'blocked' status!
+    const targetDefect = defects.find((d) => d.id === defectId);
+    if (targetDefect) {
+      const assetId = targetDefect.asset_id;
+      const hasOtherOpenDefects = updatedDefects.some((d) => d.asset_id === assetId && d.status === "open");
+
+      if (!hasOtherOpenDefects) {
+        // Clear asset block in local state
+        const updatedAssets = assets.map((a) => {
+          if (a.id === assetId && a.status === "blocked") {
+            return { ...a, status: "in_service" as const };
+          }
+          return a;
+        });
+        setAssets(updatedAssets);
+
+        // Save custom assets update to local storage
+        const customOnly = updatedAssets.filter((a) => a.id.startsWith("custom-asset-"));
+        localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+      }
+    }
+  };
+
+  // Assign a mechanic to a defect log
+  const handleAssignMechanic = (defectId: string, mechanicName: string) => {
+    const updatedDefects = defects.map((def) => {
+      if (def.id === defectId) {
+        return { ...def, assigned_to: mechanicName };
+      }
+      return def;
+    });
+
+    setDefects(updatedDefects);
+    localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
   };
 
   const blocked = assets.filter((a) => a.status === "blocked");
@@ -243,6 +300,89 @@ export default function DashboardClient({
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Defects & Maintenance Log Section */}
+      <section className="space-y-3 pt-2">
+        <h2 className="font-display font-semibold text-sm uppercase tracking-wide text-steelLight">
+          Defects & Job Cards ({defects.filter((d) => d.status === "open").length} open)
+        </h2>
+
+        {defects.length === 0 ? (
+          <div className="bg-slate-50 border border-dashed border-fogDark rounded-xl p-6 text-center text-xs text-steelLight">
+            No compliance defects logged. Fleet is fully cleared.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {defects.map((def) => {
+              const isResolved = def.status === "resolved";
+              return (
+                <div
+                  key={def.id}
+                  className={`border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-sm ${
+                    isResolved ? "bg-slate-50/50 border-fogDark opacity-60" : "bg-white border-rose-200 hover:border-rose-300"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded ${
+                        isResolved ? "bg-slate-100 text-slate-500" : "bg-rose-50 text-rose-700 border border-rose-100"
+                      }`}>
+                        {isResolved ? "Resolved" : "Open Defect"}
+                      </span>
+                      <span className="text-xs font-bold text-ink">
+                        {def.asset_name}
+                      </span>
+                      <span className="text-slate-300 font-mono">·</span>
+                      <span className="text-xs font-semibold text-steel">
+                        {def.item_label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-mono italic">
+                      Fault: {def.description}
+                    </p>
+                    {def.assigned_to ? (
+                      <p className="text-[10px] text-emerald-700 font-mono font-semibold">
+                        🛠️ Assigned to: {def.assigned_to}
+                      </p>
+                    ) : (
+                      !isResolved && (
+                        <p className="text-[10px] text-amber font-mono font-semibold">
+                          ⚠️ Unassigned
+                        </p>
+                      )
+                    )}
+                    {isResolved && def.resolved_at && (
+                      <p className="text-[9px] text-slate-400 font-mono">
+                        Cleared on: {new Date(def.resolved_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+
+                  {!isResolved && (
+                    <div className="flex gap-1.5 self-end sm:self-center shrink-0">
+                      <button
+                        onClick={() => {
+                          const mech = prompt("Enter mechanic name to assign job:");
+                          if (mech) handleAssignMechanic(def.id, mech);
+                        }}
+                        className="px-2.5 py-1 text-[10px] font-bold border border-fogDark rounded-lg text-steel hover:bg-slate-50"
+                      >
+                        Assign
+                      </button>
+                      <button
+                        onClick={() => handleResolveDefect(def.id)}
+                        className="px-3 py-1.5 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm"
+                      >
+                        Clear Defect
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* pre start gate link */}

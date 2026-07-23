@@ -1,319 +1,950 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
 import { isDemoMode, demoAssets, demoOperators } from "@/lib/demoData";
-import { CHECKLIST_COMPONENTS } from "@/lib/types";
+import { checklistTemplates } from "@/lib/checklistTemplates";
+import { Asset, Operator, ComplianceItem, InspectionRecord, DefectRecord, ChecklistItem } from "@/lib/types";
 
-type ComponentState = "unchecked" | "pass" | "fail";
+// Licence validation mapping
+const checkLicenceValid = (operatorLicence: string | null | undefined, requiredCategory: string): { valid: boolean; reason?: string } => {
+  if (!operatorLicence) return { valid: false, reason: "No licence class recorded on driver profile." };
+
+  const op = operatorLicence.toUpperCase();
+
+  // HE ticket for earthmoving
+  if (requiredCategory === "earthmoving_heavy_equipment") {
+    return op === "HE" ? { valid: true } : { valid: false, reason: "Requires Heavy Equipment (HE) Operator Ticket." };
+  }
+  // MEWP ticket for scissor lifts
+  if (requiredCategory === "mewp_aerial_lift") {
+    return op === "MEWP" ? { valid: true } : { valid: false, reason: "Requires Mobile Elevated Work Platform (MEWP) Operator Card." };
+  }
+
+  // Motorcycle Code A
+  if (requiredCategory === "motorcycle_code_a") {
+    return op === "A" ? { valid: true } : { valid: false, reason: "Requires Motorcycle Code A driving licence." };
+  }
+
+  // Bakkie Code B
+  if (requiredCategory === "light_vehicle_code_b") {
+    return ["B", "EB", "C1", "C", "EC1", "EC"].includes(op)
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code B (or higher) driving licence." };
+  }
+
+  // Code EB (Bakkie + trailer)
+  if (requiredCategory === "light_vehicle_trailer_code_eb") {
+    return ["EB", "EC1", "EC"].includes(op)
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code EB (or higher combination) driving licence." };
+  }
+
+  // Code C1 (Rigid heavy truck <= 16T)
+  if (requiredCategory === "heavy_vehicle_code_c1") {
+    return ["C1", "C", "EC1", "EC"].includes(op)
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code C1 (or higher rigid) driving licence." };
+  }
+
+  // Code C (Rigid heavy truck > 16T)
+  if (requiredCategory === "extra_heavy_vehicle_code_c") {
+    return ["C", "EC"].includes(op)
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code C (or EC combination) driving licence." };
+  }
+
+  // Code EC1 combination
+  if (requiredCategory === "heavy_combination_code_ec1") {
+    return ["EC1", "EC"].includes(op)
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code EC1 (or EC extra heavy) combination licence." };
+  }
+
+  // Code EC combination (Articulated superlink)
+  if (requiredCategory === "extra_heavy_combination_code_ec") {
+    return op === "EC"
+      ? { valid: true }
+      : { valid: false, reason: "Requires Code EC Extra Heavy Combination driving licence." };
+  }
+
+  return { valid: true }; // Support tools, plant fallback
+};
 
 export default function ChecklistPage() {
-  const demo = isDemoMode();
-  const [assets, setAssets] = useState(demoAssets);
-  const [operators, setOperators] = useState(demoOperators);
-
-  const [assetId, setAssetId] = useState("");
-  const [operatorId, setOperatorId] = useState("");
+  const [assets, setAssets] = useState<Asset[]>(demoAssets);
+  const [operators, setOperators] = useState<Operator[]>(demoOperators);
+  const [selectedAssetId, setSelectedAssetId] = useState("");
+  const [selectedOperatorId, setSelectedOperatorId] = useState("");
+  const [inspectionType, setInspectionType] = useState<"pre_use" | "post_use">("pre_use");
   const [odometer, setOdometer] = useState("");
-  const [states, setStates] = useState<Record<string, ComponentState>>(
-    Object.fromEntries(CHECKLIST_COMPONENTS.map((c) => [c.key, "unchecked"]))
-  );
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Load custom assets and operators
+  // Checklist values
+  const [answers, setAnswers] = useState<Record<string, "Y" | "N" | "P" | "M" | "R" | "NA">>({});
+  const [remarks, setRemarks] = useState<Record<string, string>>({}); // Tied to specific line items
+
+  // Supervisor override
+  const [supervisorPin, setSupervisorPin] = useState("");
+  const [supervisorName, setSupervisorName] = useState("");
+  const [isOverrideApproved, setIsOverrideApproved] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideError, setOverrideError] = useState<string | null>(null);
+
+  // Signature Canvas
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
+
+  // Sync Queue Simulation
+  const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
+  const [isSimulateOffline, setIsSimulateOffline] = useState(false);
+
+  // Checklist Outcome state
+  const [finalRecord, setFinalRecord] = useState<InspectionRecord | null>(null);
+  const [generatedDefects, setGeneratedDefects] = useState<DefectRecord[]>([]);
+
+  // Load custom assets & operators
   useEffect(() => {
     const storedAssets = localStorage.getItem("ops_gate_assets");
     if (storedAssets) {
       try {
-        const parsed = JSON.parse(storedAssets) as any[];
+        const parsed = JSON.parse(storedAssets) as Asset[];
         const ids = new Set(demoAssets.map((a) => a.id));
-        const merged = [...demoAssets, ...parsed.filter((p) => !ids.has(p.id))];
-        setAssets(merged);
-        if (merged.length) setAssetId(merged[0].id);
+        setAssets([...demoAssets, ...parsed.filter((p) => !ids.has(p.id))]);
       } catch (e) {
         console.error(e);
       }
-    } else {
-      if (demoAssets.length) setAssetId(demoAssets[0].id);
     }
 
     const storedOperators = localStorage.getItem("ops_gate_operators");
     if (storedOperators) {
       try {
-        const parsed = JSON.parse(storedOperators) as any[];
+        const parsed = JSON.parse(storedOperators) as Operator[];
         const ids = new Set(demoOperators.map((o) => o.id));
-        const merged = [...demoOperators, ...parsed.filter((p) => !ids.has(p.id))];
-        setOperators(merged);
-        if (merged.length) setOperatorId(merged[0].id);
+        setOperators([...demoOperators, ...parsed.filter((p) => !ids.has(p.id))]);
       } catch (e) {
         console.error(e);
       }
-    } else {
-      if (demoOperators.length) setOperatorId(demoOperators[0].id);
+    }
+
+    // Load offline queue
+    const queue = localStorage.getItem("ops_gate_offline_queue");
+    if (queue) {
+      try {
+        setOfflineQueue(JSON.parse(queue));
+      } catch (e) {
+        console.error(e);
+      }
     }
   }, []);
-  const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<"cleared" | "blocked" | null>(null);
 
-  const allAnswered = CHECKLIST_COMPONENTS.every((c) => states[c.key] !== "unchecked");
-  const failedComponents = useMemo(
-    () => CHECKLIST_COMPONENTS.filter((c) => states[c.key] === "fail").map((c) => c.key),
-    [states]
-  );
+  // Set default selection
+  useEffect(() => {
+    if (assets.length && !selectedAssetId) {
+      setSelectedAssetId(assets[0].id);
+    }
+    if (operators.length && !selectedOperatorId) {
+      setSelectedOperatorId(operators[0].id);
+    }
+  }, [assets, operators, selectedAssetId, selectedOperatorId]);
 
-  function setComponent(key: string, value: ComponentState) {
-    setStates((s) => ({ ...s, [key]: value }));
-  }
+  // Selected details
+  const selectedAsset = useMemo(() => assets.find((a) => a.id === selectedAssetId), [assets, selectedAssetId]);
+  const selectedOperator = useMemo(() => operators.find((o) => o.id === selectedOperatorId), [operators, selectedOperatorId]);
 
-  async function handleSubmit() {
-    setSubmitting(true);
-    const outcome = failedComponents.length > 0 ? "blocked" : "cleared";
+  // Licence & Medical validations
+  const licenceValidation = useMemo(() => {
+    if (!selectedAsset || !selectedOperator) return { valid: true };
+    return checkLicenceValid(selectedOperator.licence_code, selectedAsset.category);
+  }, [selectedAsset, selectedOperator]);
 
-    if (!demo) {
-      const supabase = createClient();
-      await supabase.from("events").insert({
-        asset_id: assetId,
-        operator_id: operatorId,
-        event_type: "pre_start_checklist",
-        checklist_result: outcome === "cleared" ? "pass" : "fail",
-        odometer_or_hours: odometer ? Number(odometer) : null,
-        notes,
-        flagged_components: failedComponents,
-      });
-      if (outcome === "blocked") {
-        await supabase.from("assets").update({ status: "blocked" }).eq("id", assetId);
+  const medicalValidation = useMemo(() => {
+    if (!selectedOperator) return { valid: true };
+    if (!selectedOperator.medical_expiry) {
+      // Require medical certification only for heavy rigid/combination / HE / MEWP
+      const isHeavy = ["heavy_vehicle_code_c1", "extra_heavy_vehicle_code_c", "heavy_combination_code_ec1", "extra_heavy_combination_code_ec", "earthmoving_heavy_equipment", "mewp_aerial_lift"].includes(selectedAsset?.category || "");
+      return isHeavy ? { valid: false, reason: "Requires active medical certificate." } : { valid: true };
+    }
+
+    const exp = new Date(selectedOperator.medical_expiry);
+    const today = new Date();
+    return exp.getTime() < today.getTime()
+      ? { valid: false, reason: `Medical Certificate expired on ${selectedOperator.medical_expiry}` }
+      : { valid: true };
+  }, [selectedOperator, selectedAsset]);
+
+  const isOperatorBlocked = !licenceValidation.valid || !medicalValidation.valid;
+
+  // Retrieve checklist template
+  const template = useMemo(() => {
+    if (!selectedAsset) return null;
+    return checklistTemplates[selectedAsset.category] || checklistTemplates.general_heavy_plant;
+  }, [selectedAsset]);
+
+  // For post-use, filter down to a subset of checks (exclude documentation/spares, keep safety/exterior/brakes)
+  const filteredTemplateSections = useMemo(() => {
+    if (!template) return [];
+    if (inspectionType === "pre_use") return template.sections;
+
+    // Post-Use filters out static documentation & spare parts checking
+    return template.sections
+      .map((sec) => ({
+        ...sec,
+        items: sec.items.filter((item) => {
+          const lbl = item.label.toLowerCase();
+          return !lbl.includes("doc_") && !lbl.includes("spare") && !lbl.includes("triangle") && !lbl.includes("licence disc");
+        }),
+      }))
+      .filter((sec) => sec.items.length > 0);
+  }, [template, inspectionType]);
+
+  // Flat array of current items
+  const currentItems = useMemo(() => {
+    return filteredTemplateSections.flatMap((s) => s.items);
+  }, [filteredTemplateSections]);
+
+  // Check if all items are checked
+  const allAnswered = useMemo(() => {
+    return currentItems.every((item) => answers[item.id] !== undefined);
+  }, [currentItems, answers]);
+
+  // Determine if safety-critical failure exists
+  const safetyCriticalFailures = useMemo(() => {
+    return currentItems.filter((item) => {
+      const val = answers[item.id];
+      const isFailed = val === "N" || val === "R";
+      return item.is_safety_critical && isFailed;
+    });
+  }, [currentItems, answers]);
+
+  const isDispatchBlocked = safetyCriticalFailures.length > 0 && !isOverrideApproved;
+
+  // Handle answers update
+  const setAnswer = (id: string, value: "Y" | "N" | "P" | "M" | "R" | "NA") => {
+    setAnswers((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleRemarkChange = (id: string, text: string) => {
+    setRemarks((prev) => ({ ...prev, [id]: text }));
+  };
+
+  // Supervisor override PIN submit
+  const handleVerifyOverride = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (supervisorPin === "1234" && supervisorName.trim()) {
+      setIsOverrideApproved(true);
+      setOverrideError(null);
+    } else {
+      setOverrideError("Invalid Supervisor Authorization PIN.");
+    }
+  };
+
+  // Signature Pad Logic
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignature(false);
+  };
+
+  // Sync Offline Queue
+  const triggerSyncQueue = () => {
+    if (!offlineQueue.length) return;
+
+    // Load completed inspections
+    const storedInspections = localStorage.getItem("ops_gate_inspections");
+    let currentInspections = storedInspections ? JSON.parse(storedInspections) : [];
+    
+    // Load defects
+    const storedDefects = localStorage.getItem("ops_gate_defects");
+    let currentDefects = storedDefects ? JSON.parse(storedDefects) : [];
+
+    offlineQueue.forEach((queued) => {
+      currentInspections.push(queued.record);
+      currentDefects.push(...queued.defects);
+    });
+
+    localStorage.setItem("ops_gate_inspections", JSON.stringify(currentInspections));
+    localStorage.setItem("ops_gate_defects", JSON.stringify(currentDefects));
+    localStorage.removeItem("ops_gate_offline_queue");
+    setOfflineQueue([]);
+    alert("Offline queue synchronized successfully with central datastore!");
+  };
+
+  // Submit Inspection Form
+  const handleFinalSubmit = () => {
+    if (!selectedAsset || !selectedOperator) return;
+
+    // Get Signature data URL
+    const signatureUrl = canvasRef.current ? canvasRef.current.toDataURL() : "";
+
+    const newRecord: InspectionRecord = {
+      id: `insp-${Date.now()}`,
+      asset_id: selectedAsset.id,
+      asset_name: selectedAsset.name,
+      operator_id: selectedOperator.id,
+      operator_name: selectedOperator.full_name,
+      odometer_or_hours: odometer ? Number(odometer) : selectedAsset.odometer_or_hours,
+      type: inspectionType,
+      results: answers,
+      status: isDispatchBlocked ? "rejected" : "accepted",
+      supervisor_override_by: isOverrideApproved ? supervisorName : null,
+      override_reason: isOverrideApproved ? overrideReason : null,
+      signature_data: signatureUrl,
+      created_at: new Date().toISOString(),
+    };
+
+    // Auto-generate defect records for failed items (N or R or M)
+    const defects: DefectRecord[] = [];
+    currentItems.forEach((item) => {
+      const val = answers[item.id];
+      if (val === "N" || val === "R" || val === "M") {
+        defects.push({
+          id: `defect-${Date.now()}-${item.id}`,
+          inspection_id: newRecord.id,
+          asset_id: selectedAsset.id,
+          asset_name: selectedAsset.name,
+          item_id: item.id,
+          item_label: item.label,
+          description: remarks[item.id] || "No description recorded.",
+          status: "open",
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Check if offline mode simulated
+    if (isSimulateOffline) {
+      const updatedQueue = [...offlineQueue, { record: newRecord, defects }];
+      localStorage.setItem("ops_gate_offline_queue", JSON.stringify(updatedQueue));
+      setOfflineQueue(updatedQueue);
+    } else {
+      // Save locally to persistence databases
+      const storedInspections = localStorage.getItem("ops_gate_inspections");
+      const currentInspections = storedInspections ? JSON.parse(storedInspections) : [];
+      currentInspections.push(newRecord);
+      localStorage.setItem("ops_gate_inspections", JSON.stringify(currentInspections));
+
+      const storedDefects = localStorage.getItem("ops_gate_defects");
+      const currentDefects = storedDefects ? JSON.parse(storedDefects) : [];
+      currentDefects.push(...defects);
+      localStorage.setItem("ops_gate_defects", JSON.stringify(currentDefects));
+
+      // Update Asset Status in local state and local storage if blocked
+      if (newRecord.status === "rejected") {
+        const storedAssets = localStorage.getItem("ops_gate_assets");
+        const parsedAssets = storedAssets ? JSON.parse(storedAssets) as Asset[] : [];
+        const index = parsedAssets.findIndex((a) => a.id === selectedAsset.id);
+        if (index > -1) {
+          parsedAssets[index].status = "blocked";
+        } else {
+          parsedAssets.push({ ...selectedAsset, status: "blocked" });
+        }
+        localStorage.setItem("ops_gate_assets", JSON.stringify(parsedAssets));
+      } else {
+        // clear block if passed
+        const storedAssets = localStorage.getItem("ops_gate_assets");
+        const parsedAssets = storedAssets ? JSON.parse(storedAssets) as Asset[] : [];
+        const index = parsedAssets.findIndex((a) => a.id === selectedAsset.id);
+        if (index > -1) {
+          parsedAssets[index].status = "in_service";
+          localStorage.setItem("ops_gate_assets", JSON.stringify(parsedAssets));
+        }
       }
     }
 
-    setResult(outcome);
-    setSubmitting(false);
-  }
+    setFinalRecord(newRecord);
+    setGeneratedDefects(defects);
+    setStep(3);
+  };
 
-  if (result) {
-    return <ResultGate outcome={result} failedComponents={failedComponents} onReset={() => {
-      setResult(null);
-      setStates(Object.fromEntries(CHECKLIST_COMPONENTS.map((c) => [c.key, "unchecked"])));
-      setOdometer("");
-      setNotes("");
-    }} />;
-  }
+  const handleReset = () => {
+    setStep(1);
+    setAnswers({});
+    setRemarks({});
+    setSupervisorPin("");
+    setSupervisorName("");
+    setIsOverrideApproved(false);
+    setOverrideReason("");
+    setOdometer("");
+    setFinalRecord(null);
+    setGeneratedDefects([]);
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-xs font-mono uppercase tracking-wider text-steelLight">Before dispatch</p>
-        <h1 className="font-display font-bold text-2xl text-ink">Pre-start checklist</h1>
-        <p className="text-sm text-steelLight mt-1">
-          Every component must be checked before this asset can be dispatched.
-        </p>
+    <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Offline simulation indicator bar */}
+      <div className="flex items-center justify-between bg-slate-100 border border-fogDark rounded-xl p-3 text-xs gap-3">
+        <div className="flex items-center gap-2">
+          <span className={`w-2.5 h-2.5 rounded-full ${isSimulateOffline ? "bg-amber" : "bg-emerald-500"}`} />
+          <span className="font-semibold text-ink">
+            {isSimulateOffline ? "Working Offline" : "Connected Live"}
+          </span>
+          {offlineQueue.length > 0 && (
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 font-mono text-[10px] font-bold">
+              {offlineQueue.length} queued
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsSimulateOffline(!isSimulateOffline)}
+            className="text-[10px] uppercase font-bold text-steel hover:underline font-mono"
+          >
+            {isSimulateOffline ? "Go Online" : "Simulate Offline"}
+          </button>
+          {offlineQueue.length > 0 && (
+            <button
+              onClick={triggerSyncQueue}
+              className="text-[10px] uppercase font-bold text-amber hover:underline font-mono border border-amber/30 px-2 py-1 rounded bg-amber/5"
+            >
+              Sync Queue
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Asset">
-          <select
-            value={assetId}
-            onChange={(e) => setAssetId(e.target.value)}
-            className="w-full border border-fogDark rounded-md px-3 py-2.5 bg-white text-sm"
-          >
-            {assets.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Operator">
-          <select
-            value={operatorId}
-            onChange={(e) => setOperatorId(e.target.value)}
-            className="w-full border border-fogDark rounded-md px-3 py-2.5 bg-white text-sm"
-          >
-            {operators.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.full_name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      {step === 1 && (
+        <div className="bg-white border border-fogDark rounded-2xl p-6 shadow-xl space-y-6">
+          <div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber">Step 1 of 2</span>
+            <h2 className="font-display font-bold text-2xl text-ink mt-1">Select Asset & Operator</h2>
+            <p className="text-xs text-steelLight">
+              Provide operator credentials and choose the vehicle/equipment for verification.
+            </p>
+          </div>
 
-      {/* Visual Alignment Panel */}
-      {(() => {
-        const selectedAsset = assets.find((a) => a.id === assetId);
-        const selectedOperator = operators.find((o) => o.id === operatorId);
+          <div className="space-y-4">
+            {/* Operator Select */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Assigned Operator</label>
+              <select
+                value={selectedOperatorId}
+                onChange={(e) => setSelectedOperatorId(e.target.value)}
+                className="w-full border border-fogDark rounded-lg px-3.5 py-2.5 bg-white text-xs text-ink"
+              >
+                {operators.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.full_name} ({o.role} · Code {o.licence_code || "None"})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        if (!selectedAsset && !selectedOperator) return null;
+            {/* Asset Select */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Target Fleet Asset</label>
+              <select
+                value={selectedAssetId}
+                onChange={(e) => setSelectedAssetId(e.target.value)}
+                className="w-full border border-fogDark rounded-lg px-3.5 py-2.5 bg-white text-xs text-ink"
+              >
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.registration || "No Tag"} · {a.category.replace(/_/g, " ")})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        return (
-          <div className="bg-slate-50 border border-fogDark rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              {selectedAsset?.photo_url && (
-                <img
-                  src={selectedAsset.photo_url}
-                  alt={selectedAsset.name}
-                  className="w-16 h-12 rounded object-cover border border-fogDark shadow-sm shrink-0"
-                />
-              )}
-              <div>
-                <p className="text-[10px] font-mono text-steelLight uppercase tracking-wider">Asset Selected</p>
-                <p className="text-xs font-bold text-ink">{selectedAsset?.name || "No asset"}</p>
-                <p className="text-[10px] text-steel font-mono">{selectedAsset?.registration}</p>
+            {/* Visual preview panel */}
+            {selectedAsset && selectedOperator && (
+              <div className="bg-slate-50 border border-fogDark rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  {selectedAsset.photo_url && (
+                    <img
+                      src={selectedAsset.photo_url}
+                      alt={selectedAsset.name}
+                      className="w-14 h-11 rounded object-cover border border-fogDark shrink-0 shadow-sm"
+                    />
+                  )}
+                  <div>
+                    <p className="text-[9px] font-mono text-steelLight uppercase tracking-wider">Asset</p>
+                    <p className="text-xs font-bold text-ink">{selectedAsset.name}</p>
+                    <p className="text-[10px] text-steel font-mono capitalize">{selectedAsset.category.replace(/_/g, " ")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-right">
+                  <div>
+                    <p className="text-[9px] font-mono text-steelLight uppercase tracking-wider">Operator</p>
+                    <p className="text-xs font-bold text-ink">{selectedOperator.full_name}</p>
+                    <p className="text-[10px] text-steel font-mono">Licence: Code {selectedOperator.licence_code || "N/A"}</p>
+                  </div>
+                  {selectedOperator.avatar_url && (
+                    <img
+                      src={selectedOperator.avatar_url}
+                      alt={selectedOperator.full_name}
+                      className="w-10 h-10 rounded-full object-cover border border-fogDark shrink-0 shadow-sm"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Validation Feedback Boxes */}
+            {selectedAsset && selectedOperator && (
+              <div className="space-y-2">
+                {/* Licence check */}
+                {!licenceValidation.valid ? (
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex gap-2">
+                    <svg className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <p className="font-bold uppercase tracking-wide">Invalid Licence Class</p>
+                      <p className="text-slate-600 mt-0.5">{licenceValidation.reason}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs flex gap-2">
+                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4" />
+                    </svg>
+                    <span>Operator licence code <strong>{selectedOperator.licence_code}</strong> meets compliance class for this asset.</span>
+                  </div>
+                )}
+
+                {/* Medical expiry check */}
+                {!medicalValidation.valid ? (
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex gap-2">
+                    <svg className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <p className="font-bold uppercase tracking-wide">Medical Clearance Expired / Missing</p>
+                      <p className="text-slate-600 mt-0.5">{medicalValidation.reason}</p>
+                    </div>
+                  </div>
+                ) : (
+                  selectedOperator.medical_expiry && (
+                    <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs flex gap-2">
+                      <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4" />
+                      </svg>
+                      <span>Medical certificate clearance valid until {selectedOperator.medical_expiry}.</span>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Inspection Type Selector */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Inspection Window</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectionType("pre_use")}
+                  className={`py-3 rounded-lg border text-xs font-bold transition-all ${
+                    inspectionType === "pre_use"
+                      ? "bg-steelDark text-white border-steelDark"
+                      : "bg-white text-steel border-fogDark hover:bg-slate-50"
+                  }`}
+                >
+                  🌅 Pre-Use / Start of Shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectionType("post_use")}
+                  className={`py-3 rounded-lg border text-xs font-bold transition-all ${
+                    inspectionType === "post_use"
+                      ? "bg-steelDark text-white border-steelDark"
+                      : "bg-white text-steel border-fogDark hover:bg-slate-50"
+                  }`}
+                >
+                  🌇 Post-Use / End of Shift
+                </button>
               </div>
             </div>
+          </div>
 
-            <div className="hidden sm:block text-slate-300 font-mono">⇄</div>
+          <button
+            onClick={() => setStep(2)}
+            disabled={isOperatorBlocked}
+            className="w-full py-4 bg-ink disabled:bg-slate-200 disabled:text-slate-400 hover:bg-steelDark text-white font-bold text-xs rounded-xl shadow-lg transition-all active:scale-98"
+          >
+            {isOperatorBlocked ? "Resolve Operator Blocks First" : "Start Inspection Checklist →"}
+          </button>
+        </div>
+      )}
 
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end sm:justify-start">
-              <div className="text-right sm:text-left">
-                <p className="text-[10px] font-mono text-steelLight uppercase tracking-wider">Operator Assigned</p>
-                <p className="text-xs font-bold text-ink">{selectedOperator?.full_name || "No driver"}</p>
-                <p className="text-[10px] text-steel capitalize">{selectedOperator?.role}</p>
+      {step === 2 && selectedAsset && (
+        <div className="bg-white border border-fogDark rounded-2xl p-6 shadow-xl space-y-6">
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber">Step 2 of 2</span>
+              <h2 className="font-display font-bold text-xl text-ink mt-0.5">
+                {inspectionType === "pre_use" ? "🌅 Pre-Use" : "🌇 Post-Use"} Inspection Form
+              </h2>
+              <p className="text-xs text-steelLight capitalize mt-0.5">
+                Asset: {selectedAsset.name} · Code: {selectedAsset.category.replace(/_/g, " ")}
+              </p>
+            </div>
+            <button
+              onClick={() => setStep(1)}
+              className="text-xs text-amber font-mono hover:underline font-bold"
+            >
+              Back to Start
+            </button>
+          </div>
+
+          {/* Render Checklist Items Grouped by Section */}
+          <div className="space-y-6">
+            {filteredTemplateSections.map((sec, secIdx) => (
+              <div key={secIdx} className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400 bg-slate-50 p-2 rounded border border-fogDark">
+                  {sec.title}
+                </h4>
+
+                <div className="divide-y divide-slate-100">
+                  {sec.items.map((item) => {
+                    const ans = answers[item.id];
+                    const hasFailed = ans === "N" || ans === "R";
+
+                    return (
+                      <div key={item.id} className="py-3.5 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <span className="text-xs font-semibold text-ink leading-relaxed">
+                            {item.label}
+                            {item.is_safety_critical && (
+                              <span className="ml-1.5 px-1.5 py-0.5 rounded text-[8px] bg-rose-100 text-rose-800 border border-rose-200 font-mono font-bold uppercase">
+                                Safety Critical
+                              </span>
+                            )}
+                          </span>
+
+                          {/* Action Radio Group Buttons */}
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                            {item.expected_type === "yn" ? (
+                              <>
+                                <CheckButton
+                                  active={ans === "Y"}
+                                  label="Yes / Pass"
+                                  onClick={() => setAnswer(item.id, "Y")}
+                                  tone="go"
+                                />
+                                <CheckButton
+                                  active={ans === "N"}
+                                  label="No / Fail"
+                                  onClick={() => setAnswer(item.id, "N")}
+                                  tone="stop"
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <CheckButton
+                                  active={ans === "P"}
+                                  label="P (Pass)"
+                                  onClick={() => setAnswer(item.id, "P")}
+                                  tone="go"
+                                />
+                                <CheckButton
+                                  active={ans === "M"}
+                                  label="M (Maint)"
+                                  onClick={() => setAnswer(item.id, "M")}
+                                  tone="warn"
+                                />
+                                <CheckButton
+                                  active={ans === "R"}
+                                  label="R (Reject)"
+                                  onClick={() => setAnswer(item.id, "R")}
+                                  tone="stop"
+                                />
+                              </>
+                            )}
+                            <CheckButton
+                              active={ans === "NA"}
+                              label="N/A"
+                              onClick={() => setAnswer(item.id, "NA")}
+                              tone="neutral"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Defect Remarks tied directly to line number */}
+                        {hasFailed && (
+                          <div className="animate-slide-down">
+                            <input
+                              type="text"
+                              required
+                              value={remarks[item.id] || ""}
+                              onChange={(e) => handleRemarkChange(item.id, e.target.value)}
+                              placeholder="🚨 REQUIRED: Describe the failure details for this line item..."
+                              className="w-full px-3 py-2 text-xs bg-rose-50 border border-rose-200 text-rose-900 rounded-lg placeholder-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              {selectedOperator?.avatar_url && (
-                <img
-                  src={selectedOperator.avatar_url}
-                  alt={selectedOperator.full_name}
-                  className="w-12 h-12 rounded-full object-cover border border-fogDark shadow-sm shrink-0"
-                />
+            ))}
+          </div>
+
+          {/* Safety Gate Warning Block */}
+          {safetyCriticalFailures.length > 0 && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 space-y-3">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-rose-600 shrink-0 mt-0.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <p className="font-black text-rose-800 text-sm tracking-tight uppercase">🚨 DISPATCH BLOCKED</p>
+                  <p className="text-xs text-rose-700 mt-1">
+                    Failed safety-critical items: <strong>{safetyCriticalFailures.map((f) => f.label.split(":")[0]).join(", ")}</strong>.
+                    An authorized site supervisor must verify and input an override PIN to clear this asset for shift dispatch.
+                  </p>
+                </div>
+              </div>
+
+              {isOverrideApproved ? (
+                <div className="px-3 py-2 rounded bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
+                  ✓ Supervisor Override Approved by {supervisorName}
+                </div>
+              ) : (
+                <form onSubmit={handleVerifyOverride} className="flex gap-2 items-center bg-white p-2.5 rounded-lg border border-rose-200">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Supervisor Name"
+                    value={supervisorName}
+                    onChange={(e) => setSupervisorName(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs border border-fogDark rounded bg-white text-ink placeholder-steelLight shrink min-w-0"
+                  />
+                  <input
+                    type="password"
+                    required
+                    placeholder="Override PIN"
+                    value={supervisorPin}
+                    onChange={(e) => setSupervisorPin(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs border border-fogDark rounded bg-white text-ink placeholder-steelLight w-24 font-mono text-center"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-bold uppercase shrink-0"
+                  >
+                    Authorize
+                  </button>
+                </form>
+              )}
+              {overrideError && <p className="text-[10px] text-rose-600 font-bold font-mono">{overrideError}</p>}
+
+              {isOverrideApproved && (
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-rose-800 uppercase">Override Justification Comment</label>
+                  <input
+                    type="text"
+                    required
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="e.g. Cleared for yard relocation check only. Maintenance scheduled at 14:00."
+                    className="w-full px-3 py-2 text-xs border border-rose-200 bg-white text-ink rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  />
+                </div>
               )}
             </div>
-          </div>
-        );
-      })()}
+          )}
 
-      <Field label="Odometer / engine hours">
-        <input
-          type="number"
-          inputMode="numeric"
-          value={odometer}
-          onChange={(e) => setOdometer(e.target.value)}
-          placeholder="e.g. 182450"
-          className="w-full border border-fogDark rounded-md px-3 py-2.5 bg-white text-sm font-mono"
-        />
-      </Field>
-
-      <div className="space-y-2">
-        {CHECKLIST_COMPONENTS.map((c) => (
-          <div
-            key={c.key}
-            className="flex items-center justify-between bg-white border border-fogDark rounded-md px-4 py-3"
-          >
-            <span className="text-sm font-medium text-ink">{c.label}</span>
-            <div className="flex gap-2">
-              <ToggleButton
-                active={states[c.key] === "pass"}
-                tone="go"
-                label="Pass"
-                onClick={() => setComponent(c.key, "pass")}
-              />
-              <ToggleButton
-                active={states[c.key] === "fail"}
-                tone="stop"
-                label="Fail"
-                onClick={() => setComponent(c.key, "fail")}
+          {/* Odometer and Signature Panel */}
+          <div className="border-t border-fogDark pt-4 space-y-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">
+                Current Odometer / Engine Hours Reading
+              </label>
+              <input
+                type="number"
+                value={odometer}
+                onChange={(e) => setOdometer(e.target.value)}
+                placeholder={`Initial: ${selectedAsset.odometer_or_hours.toLocaleString()} ${selectedAsset.asset_type === "truck" || selectedAsset.asset_type === "trailer" ? "km" : "hrs"}`}
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink font-mono focus:outline-none focus:ring-2 focus:ring-amber/40"
               />
             </div>
+
+            {/* Signature Pad Canvas */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-semibold text-steel">Operator Digital Signature</label>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  className="text-[10px] text-rose-600 hover:underline font-mono"
+                >
+                  Clear Pad
+                </button>
+              </div>
+              <div className="bg-slate-50 border border-fogDark border-dashed rounded-xl overflow-hidden touch-none relative h-28 flex items-center justify-center">
+                {!hasSignature && (
+                  <p className="absolute text-[10px] text-steelLight pointer-events-none uppercase font-mono">
+                    Sign inside this box
+                  </p>
+                )}
+                <canvas
+                  ref={canvasRef}
+                  width={600}
+                  height={112}
+                  onPointerDown={startDrawing}
+                  onPointerMove={draw}
+                  onPointerUp={stopDrawing}
+                  onPointerLeave={stopDrawing}
+                  className="w-full h-full cursor-crosshair relative z-10"
+                />
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
 
-      <Field label="Notes (optional)">
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          placeholder="Anything the site manager should know"
-          className="w-full border border-fogDark rounded-md px-3 py-2.5 bg-white text-sm"
-        />
-      </Field>
+          {/* Submit Action */}
+          <button
+            onClick={handleFinalSubmit}
+            disabled={!allAnswered || isDispatchBlocked || !hasSignature || (safetyCriticalFailures.length > 0 && isOverrideApproved && !overrideReason.trim())}
+            className="w-full py-4 bg-ink disabled:bg-slate-200 disabled:text-slate-400 hover:bg-steelDark text-white font-bold text-xs rounded-xl shadow-lg transition-all active:scale-98"
+          >
+            {!allAnswered
+              ? `Check remaining items (${currentItems.length - Object.keys(answers).length} left)`
+              : !hasSignature
+              ? "Please sign the signature pad"
+              : isDispatchBlocked
+              ? "Dispatch Blocked - Requires Override Justification"
+              : "Confirm & Submit Inspection"}
+          </button>
+        </div>
+      )}
 
-      <p className="text-xs text-steelLight">
-        Photo upload per component connects to Supabase Storage — wire this up once your bucket
-        policies are set (see <code className="font-mono">supabase/schema.sql</code>).
-      </p>
+      {step === 3 && finalRecord && (
+        <div className="bg-white border border-fogDark rounded-2xl p-6 shadow-xl text-center space-y-6 animate-scale-up">
+          <div className={`p-8 rounded-2xl ${finalRecord.status === "accepted" ? "bg-emerald-50 border border-emerald-200" : "bg-rose-50 border border-rose-200"}`}>
+            <span className={`text-[10px] font-mono font-extrabold uppercase px-3 py-1 rounded-full ${
+              finalRecord.status === "accepted" ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-rose-100 text-rose-800 border border-rose-300"
+            }`}>
+              {finalRecord.status === "accepted" ? "DISPATCH CLEARED" : "DISPATCH BLOCKED"}
+            </span>
 
-      <button
-        disabled={!allAnswered || submitting}
-        onClick={handleSubmit}
-        className="w-full bg-ink text-white font-medium rounded-md py-3.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-steel transition-colors"
-      >
-        {submitting ? "Submitting…" : allAnswered ? "Submit checklist" : `Answer all ${CHECKLIST_COMPONENTS.length} items`}
-      </button>
+            <h2 className="font-display font-black text-2xl text-ink mt-4">
+              {finalRecord.status === "accepted" ? "Inspection Approved" : "Inspection Flagged / Blocked"}
+            </h2>
+            <p className="text-xs text-steelLight mt-2 max-w-sm mx-auto leading-relaxed">
+              {finalRecord.status === "accepted"
+                ? `Compliance checks completed. Asset ${finalRecord.asset_name} is cleared for dispatch under driver ${finalRecord.operator_name}.`
+                : `Dispatch has been blocked. Asset is parked pending mechanic inspection and defect clearance.`}
+            </p>
+
+            {finalRecord.supervisor_override_by && (
+              <div className="mt-4 p-2.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-medium text-left">
+                <strong>Supervisor Override Clear:</strong> {finalRecord.supervisor_override_by}
+                <br />
+                <strong>Reason:</strong> {finalRecord.override_reason}
+              </div>
+            )}
+          </div>
+
+          {generatedDefects.length > 0 && (
+            <div className="text-left space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-steel">Defects Logged ({generatedDefects.length})</h4>
+              <div className="space-y-2">
+                {generatedDefects.map((def) => (
+                  <div key={def.id} className="p-3 bg-slate-50 border border-fogDark rounded-lg flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-ink">{def.item_label}</p>
+                      <p className="text-[10px] text-rose-700 italic mt-0.5">Defect: {def.description}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[8px] bg-rose-100 border border-rose-200 text-rose-800 font-mono font-bold uppercase">
+                      Open
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              className="flex-1 py-3.5 border border-fogDark hover:bg-slate-50 text-xs font-bold rounded-xl text-steel transition-colors"
+            >
+              Start Another Check
+            </button>
+            <Link
+              href="/dashboard"
+              className="flex-1 py-3.5 bg-ink hover:bg-steelDark text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center"
+            >
+              Return to Fleet Status
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-xs font-medium text-steelLight mb-1">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function ToggleButton({
+// Toggle checking button sub-component
+function CheckButton({
   active,
-  tone,
   label,
   onClick,
+  tone,
 }: {
   active: boolean;
-  tone: "go" | "stop";
   label: string;
   onClick: () => void;
+  tone: "go" | "warn" | "stop" | "neutral";
 }) {
-  const activeClass =
-    tone === "go" ? "bg-signal-go text-white border-signal-go" : "bg-signal-stop text-white border-signal-stop";
+  const baseClass = "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all active:scale-95 shrink-0";
+  let activeClass = "";
+
+  if (active) {
+    if (tone === "go") activeClass = "bg-emerald-600 text-white border-emerald-600 shadow-md";
+    else if (tone === "warn") activeClass = "bg-amber-500 text-white border-amber-500 shadow-md";
+    else if (tone === "stop") activeClass = "bg-rose-600 text-white border-rose-600 shadow-md";
+    else activeClass = "bg-slate-700 text-white border-slate-700 shadow-md";
+  } else {
+    activeClass = "bg-white text-steelLight border-fogDark hover:bg-slate-50";
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-4 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors ${
-        active ? activeClass : "bg-white text-steelLight border-fogDark"
-      }`}
-    >
+    <button type="button" onClick={onClick} className={`${baseClass} ${activeClass}`}>
       {label}
     </button>
-  );
-}
-
-function ResultGate({
-  outcome,
-  failedComponents,
-  onReset,
-}: {
-  outcome: "cleared" | "blocked";
-  failedComponents: string[];
-  onReset: () => void;
-}) {
-  const cleared = outcome === "cleared";
-  return (
-    <div className="flex flex-col items-center text-center py-10 space-y-5">
-      <div
-        className={`w-full rounded-md py-10 px-6 ${
-          cleared ? "bg-signal-goBg" : "bg-signal-stopBg"
-        }`}
-      >
-        <p
-          className={`font-display font-bold text-3xl tracking-tight ${
-            cleared ? "text-signal-go" : "text-signal-stop"
-          }`}
-        >
-          {cleared ? "DISPATCH CLEARED" : "DISPATCH BLOCKED"}
-        </p>
-        <p className="text-sm mt-2 text-steel">
-          {cleared
-            ? "Checklist logged. This asset is cleared for today's dispatch."
-            : `Flagged: ${failedComponents.map((f) => f.replace(/_/g, " ")).join(", ")}. A job card is needed before this asset can go out.`}
-        </p>
-      </div>
-      <button
-        onClick={onReset}
-        className="text-sm font-medium text-steel underline underline-offset-2"
-      >
-        Run another checklist
-      </button>
-    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Asset, AssetType } from "@/lib/types";
+import { Asset, AssetType, VehicleCategory } from "@/lib/types";
 
 interface AddAssetModalProps {
   isOpen: boolean;
@@ -23,6 +23,8 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
   const [name, setName] = useState("");
   const [registration, setRegistration] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("truck");
+  const [category, setCategory] = useState<VehicleCategory>("light_vehicle_code_b");
+  const [makeModel, setMakeModel] = useState("");
   const [odometer, setOdometer] = useState("");
   const [customPhotoUrl, setCustomPhotoUrl] = useState("");
   const [useCustomPhoto, setUseCustomPhoto] = useState(false);
@@ -39,6 +41,8 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
       name: name.trim(),
       registration: registration.trim() || null,
       asset_type: assetType,
+      category,
+      make_model: makeModel.trim() || null,
       odometer_or_hours: odometer ? Number(odometer) : 0,
       photo_url: photo_url || null,
     });
@@ -47,6 +51,8 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
     setName("");
     setRegistration("");
     setAssetType("truck");
+    setCategory("light_vehicle_code_b");
+    setMakeModel("");
     setOdometer("");
     setCustomPhotoUrl("");
     setUseCustomPhoto(false);
@@ -88,6 +94,17 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Make & Model</label>
+              <input
+                type="text"
+                value={makeModel}
+                onChange={(e) => setMakeModel(e.target.value)}
+                placeholder="e.g. Toyota Hilux 2.4"
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              />
+            </div>
+
+            <div className="space-y-1">
               <label className="block text-xs font-semibold text-steel">Registration / Tag</label>
               <input
                 type="text"
@@ -97,7 +114,9 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
                 className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-xs font-semibold text-steel">Asset Type</label>
               <select
@@ -112,6 +131,27 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
                 <option value="drill_rig">Drill Rig</option>
                 <option value="generator">Generator</option>
                 <option value="other">Other Machine</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Compliance Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as VehicleCategory)}
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              >
+                <option value="motorcycle_code_a">Code A - Motorcycles</option>
+                <option value="light_vehicle_code_b">Code B - Bakkies / Sedans</option>
+                <option value="light_vehicle_trailer_code_eb">Code EB - Bakkie + Trailer</option>
+                <option value="heavy_vehicle_code_c1">Code C1 - Box / Rigid Heavy</option>
+                <option value="extra_heavy_vehicle_code_c">Code C - Extra Heavy Rigid</option>
+                <option value="heavy_combination_code_ec1">Code EC1 - Combination Rigid</option>
+                <option value="extra_heavy_combination_code_ec">Code EC - Articulated Horse</option>
+                <option value="earthmoving_heavy_equipment">Earthmoving Heavy Equipment</option>
+                <option value="mewp_aerial_lift">MEWP / Aerial Lift</option>
+                <option value="attachment_power_tool">Attachments & Power Tools</option>
+                <option value="general_heavy_plant">General Heavy Plant (Fallback)</option>
               </select>
             </div>
           </div>
