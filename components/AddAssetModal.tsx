@@ -26,6 +26,11 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
   const [category, setCategory] = useState<VehicleCategory>("light_vehicle_code_b");
   const [makeModel, setMakeModel] = useState("");
   const [odometer, setOdometer] = useState("");
+  const [allocatedSite, setAllocatedSite] = useState("");
+  const [insuranceStatus, setInsuranceStatus] = useState("");
+  const [serviceDate, setServiceDate] = useState("");
+  const [serviceOdometer, setServiceOdometer] = useState("");
+  const [serviceDesc, setServiceDesc] = useState("");
   const [customPhotoUrl, setCustomPhotoUrl] = useState("");
   const [useCustomPhoto, setUseCustomPhoto] = useState(false);
 
@@ -45,6 +50,13 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
       make_model: makeModel.trim() || null,
       odometer_or_hours: odometer ? Number(odometer) : 0,
       photo_url: photo_url || null,
+      allocated_site: allocatedSite.trim() || null,
+      insurance_status: insuranceStatus.trim() || null,
+      last_service: serviceDate && serviceOdometer && serviceDesc ? {
+        date: serviceDate,
+        odometer_or_hours: Number(serviceOdometer),
+        description: serviceDesc.trim(),
+      } : null,
     });
 
     // Reset fields
@@ -54,6 +66,11 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
     setCategory("light_vehicle_code_b");
     setMakeModel("");
     setOdometer("");
+    setAllocatedSite("");
+    setInsuranceStatus("");
+    setServiceDate("");
+    setServiceOdometer("");
+    setServiceDesc("");
     setCustomPhotoUrl("");
     setUseCustomPhoto(false);
     onClose();
@@ -167,6 +184,67 @@ export default function AddAssetModal({ isOpen, onClose, onSave }: AddAssetModal
               placeholder={assetType === "truck" || assetType === "trailer" ? "Odometer (km)" : "Engine hours (hrs)"}
               className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Allocated Site / Hub</label>
+              <input
+                type="text"
+                value={allocatedSite}
+                onChange={(e) => setAllocatedSite(e.target.value)}
+                placeholder="e.g. Secunda Mine"
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-steel">Insurance Policy & Cover</label>
+              <input
+                type="text"
+                value={insuranceStatus}
+                onChange={(e) => setInsuranceStatus(e.target.value)}
+                placeholder="e.g. Active (Hollard #992)"
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-fogDark pt-3 space-y-2">
+            <span className="text-xs font-bold text-steel">Last Service History Log</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-semibold text-steelLight">Service Date</label>
+                <input
+                  type="date"
+                  value={serviceDate}
+                  onChange={(e) => setServiceDate(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-semibold text-steelLight">Service Reading</label>
+                <input
+                  type="number"
+                  value={serviceOdometer}
+                  onChange={(e) => setServiceOdometer(e.target.value)}
+                  placeholder="km or hrs"
+                  className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-steelLight">Service Maintenance Summary</label>
+              <input
+                type="text"
+                value={serviceDesc}
+                onChange={(e) => setServiceDesc(e.target.value)}
+                placeholder="e.g. Replaced fuel filter, hydraulic hose check..."
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+              />
+            </div>
           </div>
 
           {/* Photo Selector */}

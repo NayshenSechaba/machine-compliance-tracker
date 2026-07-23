@@ -24,6 +24,9 @@ export type Asset = {
   odometer_or_hours: number;
   status: AssetStatus;
   photo_url?: string | null;
+  allocated_site?: string | null;
+  insurance_status?: string | null;
+  last_service?: { date: string; odometer_or_hours: number; description: string } | null;
 };
 
 export type Operator = {
@@ -35,6 +38,7 @@ export type Operator = {
   user_number?: string | null;
   licence_code?: string | null; // e.g. "EC", "B", "C1", "A"
   medical_expiry?: string | null; // Date string "YYYY-MM-DD"
+  allocated_site?: string | null;
 };
 
 export type ComplianceStatus = "expired" | "critical" | "warning" | "upcoming" | "ok";

@@ -22,6 +22,7 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
   const [phone, setPhone] = useState("");
   const [licenceCode, setLicenceCode] = useState("B");
   const [medicalExpiry, setMedicalExpiry] = useState("");
+  const [allocatedSite, setAllocatedSite] = useState("");
   const [role, setRole] = useState<"driver" | "site_manager" | "mechanic">("driver");
   const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0].url);
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
@@ -43,6 +44,7 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
       avatar_url: avatarUrl || null,
       licence_code: licenceCode,
       medical_expiry: medicalExpiry || null,
+      allocated_site: allocatedSite.trim() || null,
     });
 
     // Reset fields
@@ -51,6 +53,7 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
     setPhone("");
     setLicenceCode("B");
     setMedicalExpiry("");
+    setAllocatedSite("");
     setRole("driver");
     setSelectedAvatar(PRESET_AVATARS[0].url);
     setCustomAvatarUrl("");
@@ -158,6 +161,17 @@ export default function AddOperatorModal({ isOpen, onClose, onSave }: AddOperato
                 className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow font-mono"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-steel">Allocated Site / Hub</label>
+            <input
+              type="text"
+              value={allocatedSite}
+              onChange={(e) => setAllocatedSite(e.target.value)}
+              placeholder="e.g. Secunda Mine"
+              className="w-full px-3.5 py-2 text-xs rounded-lg border border-fogDark bg-white text-ink focus:outline-none focus:ring-2 focus:ring-amber/40 transition-shadow"
+            />
           </div>
 
           {/* Avatar Presets */}

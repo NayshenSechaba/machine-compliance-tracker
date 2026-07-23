@@ -6,6 +6,8 @@ import { Asset, ComplianceItem, Operator, DefectRecord } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import AddAssetModal from "@/components/AddAssetModal";
 import AddOperatorModal from "@/components/AddOperatorModal";
+import AssetDetailsModal from "@/components/AssetDetailsModal";
+import OperatorDetailsModal from "@/components/OperatorDetailsModal";
 
 interface DashboardClientProps {
   initialAssets: Asset[];
@@ -25,6 +27,12 @@ export default function DashboardClient({
 
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
+
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [isAssetDetailsOpen, setIsAssetDetailsOpen] = useState(false);
+
+  const [selectedOperator, setSelectedOperator] = useState<Operator | null>(null);
+  const [isOperatorDetailsOpen, setIsOperatorDetailsOpen] = useState(false);
 
   // Load custom assets, operators, and defects from local storage
   useEffect(() => {
@@ -235,7 +243,11 @@ export default function DashboardClient({
           {assets.map((a) => (
             <div
               key={a.id}
-              className="flex items-center justify-between bg-white border border-fogDark rounded-xl px-4 py-3 gap-3 hover:border-steelLight/35 transition-colors shadow-sm"
+              onClick={() => {
+                setSelectedAsset(a);
+                setIsAssetDetailsOpen(true);
+              }}
+              className="flex items-center justify-between bg-white border border-fogDark rounded-xl px-4 py-3 gap-3 hover:border-amber/50 cursor-pointer transition-all shadow-sm active:scale-98"
             >
               <div className="flex items-center gap-3">
                 {a.photo_url && (
@@ -277,7 +289,11 @@ export default function DashboardClient({
           {operators.map((o) => (
             <div
               key={o.id}
-              className="flex items-center justify-between bg-white border border-fogDark rounded-xl px-4 py-3 gap-3 hover:border-steelLight/35 transition-colors shadow-sm"
+              onClick={() => {
+                setSelectedOperator(o);
+                setIsOperatorDetailsOpen(true);
+              }}
+              className="flex items-center justify-between bg-white border border-fogDark rounded-xl px-4 py-3 gap-3 hover:border-emerald-500/50 cursor-pointer transition-all shadow-sm active:scale-98"
             >
               <div className="flex items-center gap-3">
                 {o.avatar_url && (
@@ -407,6 +423,26 @@ export default function DashboardClient({
         isOpen={isOperatorModalOpen}
         onClose={() => setIsOperatorModalOpen(false)}
         onSave={handleSaveOperator}
+      />
+
+      {/* Asset Details Modal */}
+      <AssetDetailsModal
+        asset={selectedAsset}
+        isOpen={isAssetDetailsOpen}
+        onClose={() => {
+          setSelectedAsset(null);
+          setIsAssetDetailsOpen(false);
+        }}
+      />
+
+      {/* Operator Details Modal */}
+      <OperatorDetailsModal
+        operator={selectedOperator}
+        isOpen={isOperatorDetailsOpen}
+        onClose={() => {
+          setSelectedOperator(null);
+          setIsOperatorDetailsOpen(false);
+        }}
       />
     </div>
   );
