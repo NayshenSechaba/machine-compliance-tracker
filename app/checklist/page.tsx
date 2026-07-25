@@ -5,6 +5,7 @@ import Link from "next/link";
 import { isDemoMode, demoAssets, demoOperators } from "@/lib/demoData";
 import { checklistTemplates } from "@/lib/checklistTemplates";
 import { Asset, Operator, ComplianceItem, InspectionRecord, DefectRecord, ChecklistItem } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
 
 // Licence validation mapping
 const checkLicenceValid = (operatorLicence: string | null | undefined, requiredCategory: string): { valid: boolean; reason?: string } => {
@@ -72,6 +73,7 @@ const checkLicenceValid = (operatorLicence: string | null | undefined, requiredC
 };
 
 export default function ChecklistPage() {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>(demoAssets);
   const [operators, setOperators] = useState<Operator[]>(demoOperators);
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -832,6 +834,24 @@ export default function ChecklistPage() {
                   className="w-full h-full cursor-crosshair relative z-10"
                 />
               </div>
+
+              {user && (
+                <div className="mt-2 flex items-center justify-between text-xs text-steel bg-slate-50 border border-fogDark px-3 py-2 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {user.avatarUrl && (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.fullName}
+                        className="w-5 h-5 rounded-full object-cover border border-fogDark shrink-0 shadow-sm"
+                      />
+                    )}
+                    <span>Logged In Inspector: <strong className="text-ink font-bold">{user.fullName}</strong></span>
+                  </div>
+                  <span className="text-[9px] bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded font-mono font-extrabold uppercase">
+                    {user.role.replace(/_/g, " ")}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
