@@ -6,6 +6,7 @@ import { isDemoMode, demoAssets, demoOperators } from "@/lib/demoData";
 import { checklistTemplates } from "@/lib/checklistTemplates";
 import { Asset, Operator, ComplianceItem, InspectionRecord, DefectRecord, ChecklistItem } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
+import { logAuditEvent } from "@/lib/auditLog";
 
 // Licence validation mapping
 const checkLicenceValid = (operatorLicence: string | null | undefined, requiredCategory: string): { valid: boolean; reason?: string } => {
@@ -400,6 +401,39 @@ export default function ChecklistPage() {
     setFinalRecord(newRecord);
     setGeneratedDefects(defects);
     setStep(3);
+
+    // Audit trail: inspection submission
+    logAuditEvent({
+      entity_type: "inspection",
+      entity_id: newRecord.id,
+      entity_name: `${newRecord.type === "pre_use" ? "Pre-Use" : "Post-Use"} — ${selectedAsset.name}`,
+      action: "inspection_submitted",
+      actor_name: user?.fullName || selectedOperator.full_name,
+      actor_role: user?.role || "driver",
+      details: {
+        asset_name: selectedAsset.name,
+        operator_name: selectedOperator.full_name,
+        status: newRecord.status,
+        defect_count: defects.length,
+        override: newRecord.supervisor_override_by || null,
+      },
+    });
+
+    // Audit trail: each defect created
+    defects.forEach((defect) => {
+      logAuditEvent({
+        entity_type: "defect",
+        entity_id: defect.id,
+        entity_name: defect.item_label,
+        action: "defect_created",
+        actor_name: user?.fullName || selectedOperator.full_name,
+        actor_role: user?.role || "driver",
+        details: {
+          asset_name: selectedAsset.name,
+          description: defect.description,
+        },
+      });
+    });
   };
 
   const handleReset = () => {

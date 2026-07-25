@@ -8,6 +8,9 @@ import AddAssetModal from "@/components/AddAssetModal";
 import AddOperatorModal from "@/components/AddOperatorModal";
 import AssetDetailsModal from "@/components/AssetDetailsModal";
 import OperatorDetailsModal from "@/components/OperatorDetailsModal";
+import ComplianceHealthBar from "@/components/ComplianceHealthBar";
+import { useAuth } from "@/lib/auth";
+import { logAuditEvent } from "@/lib/auditLog";
 
 interface DashboardClientProps {
   initialAssets: Asset[];
@@ -20,6 +23,7 @@ export default function DashboardClient({
   initialCompliance,
   initialOperators,
 }: DashboardClientProps) {
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [operators, setOperators] = useState<Operator[]>(initialOperators);
   const [compliance, setCompliance] = useState<ComplianceItem[]>(initialCompliance);
@@ -90,6 +94,17 @@ export default function DashboardClient({
     // Save custom assets to local storage
     const customOnly = updated.filter((a) => a.id.startsWith("custom-asset-"));
     localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+
+    // Audit log
+    logAuditEvent({
+      entity_type: "asset",
+      entity_id: registered.id,
+      entity_name: registered.name,
+      action: "created",
+      actor_name: user?.fullName || "System",
+      actor_role: user?.role || "unknown",
+      details: { registration: registered.registration, category: registered.category },
+    });
   };
 
   // Handle Save Operator
@@ -105,6 +120,17 @@ export default function DashboardClient({
     // Save custom operators to local storage
     const customOnly = updated.filter((o) => o.id.startsWith("custom-op-"));
     localStorage.setItem("ops_gate_operators", JSON.stringify(customOnly));
+
+    // Audit log
+    logAuditEvent({
+      entity_type: "operator",
+      entity_id: registered.id,
+      entity_name: registered.full_name,
+      action: "created",
+      actor_name: user?.fullName || "System",
+      actor_role: user?.role || "unknown",
+      details: { role: registered.role, licence_code: registered.licence_code },
+    });
 
     // Automatically seed a dummy compliance item for the new driver so they show in vault
     const newComplianceItem: ComplianceItem = {
@@ -143,6 +169,20 @@ export default function DashboardClient({
     setDefects(updatedDefects);
     localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
 
+    // Audit log
+    const resolvedDef = defects.find((d) => d.id === defectId);
+    if (resolvedDef) {
+      logAuditEvent({
+        entity_type: "defect",
+        entity_id: defectId,
+        entity_name: resolvedDef.item_label,
+        action: "resolved",
+        actor_name: user?.fullName || "System",
+        actor_role: user?.role || "unknown",
+        details: { asset_name: resolvedDef.asset_name },
+      });
+    }
+
     // Check if the asset has any other OPEN defects. If all are resolved, clear its 'blocked' status!
     const targetDefect = defects.find((d) => d.id === defectId);
     if (targetDefect) {
@@ -177,6 +217,20 @@ export default function DashboardClient({
 
     setDefects(updatedDefects);
     localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
+
+    // Audit log
+    const assignedDef = defects.find((d) => d.id === defectId);
+    if (assignedDef) {
+      logAuditEvent({
+        entity_type: "defect",
+        entity_id: defectId,
+        entity_name: assignedDef.item_label,
+        action: "assigned",
+        actor_name: user?.fullName || "System",
+        actor_role: user?.role || "unknown",
+        details: { assigned_to: mechanicName, asset_name: assignedDef.asset_name },
+      });
+    }
   };
 
   const blocked = assets.filter((a) => a.status === "blocked");
@@ -188,6 +242,9 @@ export default function DashboardClient({
         <p className="text-xs font-mono uppercase tracking-wider text-steelLight">Today</p>
         <h1 className="font-display font-bold text-2xl text-ink">Fleet status</h1>
       </div>
+
+      {/* Compliance Health Bar */}
+      <ComplianceHealthBar complianceItems={compliance} />
 
       {/* Grid Status Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

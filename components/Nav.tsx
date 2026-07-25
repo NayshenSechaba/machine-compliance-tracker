@@ -3,18 +3,45 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import NotificationBell from "@/components/NotificationBell";
+import { useEffect, useState } from "react";
+import { isDemoMode, demoCompliance } from "@/lib/demoData";
+import { ComplianceItem } from "@/lib/types";
 
 const tabs = [
   { href: "/dashboard", label: "Fleet" },
   { href: "/checklist", label: "Pre-Start" },
   { href: "/vault", label: "Vault" },
+  { href: "/reports", label: "Reports", roles: ["site_manager", "admin"] },
 ];
 
 export default function Nav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [compliance, setCompliance] = useState<ComplianceItem[]>([]);
+
+  useEffect(() => {
+    // Load compliance data for notifications
+    const items = [...demoCompliance];
+    const stored = localStorage.getItem("ops_gate_compliance");
+    if (stored) {
+      try {
+        const custom = JSON.parse(stored) as ComplianceItem[];
+        custom.forEach((c) => {
+          if (!items.some((i) => i.id === c.id)) items.push(c);
+        });
+      } catch {}
+    }
+    setCompliance(items);
+  }, []);
 
   const isLoginPage = pathname === "/login";
+
+  // Filter tabs based on user role
+  const visibleTabs = tabs.filter((t) => {
+    if (!t.roles) return true;
+    return user && t.roles.includes(user.role);
+  });
 
   if (isLoginPage || !user) {
     return (
@@ -42,6 +69,9 @@ export default function Nav() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <NotificationBell complianceItems={compliance} />
+
             {user.avatarUrl && (
               <img
                 src={user.avatarUrl}
@@ -68,8 +98,8 @@ export default function Nav() {
         className="fixed bottom-0 left-0 right-0 z-20 bg-ink border-t border-black/30 sm:hidden"
         aria-label="Primary"
       >
-        <div className="grid grid-cols-3">
-          {tabs.map((t) => {
+        <div className={`grid grid-cols-${visibleTabs.length}`}>
+          {visibleTabs.map((t) => {
             const active = pathname?.startsWith(t.href);
             return (
               <Link
@@ -93,7 +123,7 @@ export default function Nav() {
       {/* Desktop nav */}
       <nav className="hidden sm:flex bg-ink border-b border-black/30" aria-label="Primary">
         <div className="max-w-3xl mx-auto px-6 flex gap-6">
-          {tabs.map((t) => {
+          {visibleTabs.map((t) => {
             const active = pathname?.startsWith(t.href);
             return (
               <Link
