@@ -6,6 +6,7 @@ import { isDemoMode, demoAssets, demoOperators } from "@/lib/demoData";
 import { checklistTemplates } from "@/lib/checklistTemplates";
 import { Asset, Operator, ComplianceItem, InspectionRecord, DefectRecord, ChecklistItem } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
 
 // Licence validation mapping
@@ -82,6 +83,9 @@ export default function ChecklistPage() {
   const [inspectionType, setInspectionType] = useState<"pre_use" | "post_use">("pre_use");
   const [odometer, setOdometer] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [uploadingPhotos, setUploadingPhotos] = useState<Record<string, boolean>>({});
+  const supabase = createClient();
 
   // Checklist values
   const [answers, setAnswers] = useState<Record<string, "Y" | "N" | "P" | "M" | "R" | "NA">>({});
@@ -109,37 +113,14 @@ export default function ChecklistPage() {
 
   // Load custom assets & operators
   useEffect(() => {
-    const storedAssets = localStorage.getItem("ops_gate_assets");
-    if (storedAssets) {
-      try {
-        const parsed = JSON.parse(storedAssets) as Asset[];
-        const ids = new Set(demoAssets.map((a) => a.id));
-        setAssets([...demoAssets, ...parsed.filter((p) => !ids.has(p.id))]);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const storedOperators = localStorage.getItem("ops_gate_operators");
-    if (storedOperators) {
-      try {
-        const parsed = JSON.parse(storedOperators) as Operator[];
-        const ids = new Set(demoOperators.map((o) => o.id));
-        setOperators([...demoOperators, ...parsed.filter((p) => !ids.has(p.id))]);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    // Load offline queue
-    const queue = localStorage.getItem("ops_gate_offline_queue");
-    if (queue) {
-      try {
-        setOfflineQueue(JSON.parse(queue));
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const fetchLiveData = async () => {
+      const { data: assetsData } = await supabase.from("assets").select("*");
+      if (assetsData && assetsData.length > 0) setAssets(assetsData as Asset[]);
+      
+      const { data: operatorsData } = await supabase.from("operators").select("*");
+      if (operatorsData && operatorsData.length > 0) setOperators(operatorsData as Operator[]);
+    };
+    fetchLiveData();
   }, []);
 
   // Set default selection
@@ -209,8 +190,15 @@ export default function ChecklistPage() {
 
   // Check if all items are checked
   const allAnswered = useMemo(() => {
-    return currentItems.every((item) => answers[item.id] !== undefined);
-  }, [currentItems, answers]);
+    return currentItems.every((item) => {
+      const ans = answers[item.id];
+      if (ans === undefined) return false;
+      if (ans === "N" || ans === "R" || ans === "M") {
+        return !!photoUrls[item.id] && !!remarks[item.id];
+      }
+      return true;
+    });
+  }, [currentItems, answers, photoUrls, remarks]);
 
   // Determine if safety-critical failure exists
   const safetyCriticalFailures = useMemo(() => {
@@ -230,6 +218,23 @@ export default function ChecklistPage() {
 
   const handleRemarkChange = (id: string, text: string) => {
     setRemarks((prev) => ({ ...prev, [id]: text }));
+  };
+
+  const handlePhotoUpload = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhotos(prev => ({ ...prev, [itemId]: true }));
+    const fileName = `${Date.now()}-${file.name}`;
+    
+    const { data, error } = await supabase.storage.from("ops-media").upload(fileName, file);
+    if (!error && data) {
+      const { data: urlData } = supabase.storage.from("ops-media").getPublicUrl(fileName);
+      setPhotoUrls(prev => ({ ...prev, [itemId]: urlData.publicUrl }));
+    } else {
+      alert("Failed to upload photo. Please try again.");
+    }
+    setUploadingPhotos(prev => ({ ...prev, [itemId]: false }));
   };
 
   // Supervisor override PIN submit
@@ -317,7 +322,7 @@ export default function ChecklistPage() {
   };
 
   // Submit Inspection Form
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     if (!selectedAsset || !selectedOperator) return;
 
     // Get Signature data URL
@@ -346,10 +351,10 @@ export default function ChecklistPage() {
       if (val === "N" || val === "R" || val === "M") {
         defects.push({
           id: `defect-${Date.now()}-${item.id}`,
-          inspection_id: newRecord.id,
+          event_id: newRecord.id,
           asset_id: selectedAsset.id,
           asset_name: selectedAsset.name,
-          item_id: item.id,
+          
           item_label: item.label,
           description: remarks[item.id] || "No description recorded.",
           status: "open",
@@ -359,43 +364,40 @@ export default function ChecklistPage() {
     });
 
     // Check if offline mode simulated
-    if (isSimulateOffline) {
-      const updatedQueue = [...offlineQueue, { record: newRecord, defects }];
-      localStorage.setItem("ops_gate_offline_queue", JSON.stringify(updatedQueue));
-      setOfflineQueue(updatedQueue);
-    } else {
-      // Save locally to persistence databases
-      const storedInspections = localStorage.getItem("ops_gate_inspections");
-      const currentInspections = storedInspections ? JSON.parse(storedInspections) : [];
-      currentInspections.push(newRecord);
-      localStorage.setItem("ops_gate_inspections", JSON.stringify(currentInspections));
+    // Save to Supabase DB instead of localStorage
+    const eventPayload = {
+      asset_id: selectedAsset.id,
+      operator_id: selectedOperator.id,
+      event_type: "pre_start_checklist",
+      checklist_result: isDispatchBlocked ? "fail" : "pass",
+      odometer_or_hours: newRecord.odometer_or_hours,
+      notes: overrideReason,
+      photo_urls: Object.values(photoUrls),
+      flagged_components: defects.map(d => d.item_label)
+    };
 
-      const storedDefects = localStorage.getItem("ops_gate_defects");
-      const currentDefects = storedDefects ? JSON.parse(storedDefects) : [];
-      currentDefects.push(...defects);
-      localStorage.setItem("ops_gate_defects", JSON.stringify(currentDefects));
+    const { data: eventData, error: eventError } = await supabase.from("events").insert(eventPayload).select().single();
 
-      // Update Asset Status in local state and local storage if blocked
-      if (newRecord.status === "rejected") {
-        const storedAssets = localStorage.getItem("ops_gate_assets");
-        const parsedAssets = storedAssets ? JSON.parse(storedAssets) as Asset[] : [];
-        const index = parsedAssets.findIndex((a) => a.id === selectedAsset.id);
-        if (index > -1) {
-          parsedAssets[index].status = "blocked";
-        } else {
-          parsedAssets.push({ ...selectedAsset, status: "blocked" });
-        }
-        localStorage.setItem("ops_gate_assets", JSON.stringify(parsedAssets));
-      } else {
-        // clear block if passed
-        const storedAssets = localStorage.getItem("ops_gate_assets");
-        const parsedAssets = storedAssets ? JSON.parse(storedAssets) as Asset[] : [];
-        const index = parsedAssets.findIndex((a) => a.id === selectedAsset.id);
-        if (index > -1) {
-          parsedAssets[index].status = "in_service";
-          localStorage.setItem("ops_gate_assets", JSON.stringify(parsedAssets));
-        }
+    if (eventData) {
+      if (defects.length > 0) {
+        const defectInserts = defects.map(d => ({
+          event_id: eventData.id,
+          asset_id: selectedAsset.id,
+          item_label: d.item_label,
+          description: d.description,
+          photo_url: photoUrls[d.item_label],
+          status: "open"
+        }));
+        await supabase.from("defects").insert(defectInserts);
       }
+
+      if (newRecord.status === "rejected") {
+        await supabase.from("assets").update({ status: "blocked" }).eq("id", selectedAsset.id);
+      } else {
+        await supabase.from("assets").update({ status: "in_service" }).eq("id", selectedAsset.id);
+      }
+    } else {
+      console.error("Failed to insert event", eventError);
     }
 
     setFinalRecord(newRecord);
@@ -739,17 +741,37 @@ export default function ChecklistPage() {
                           </div>
                         </div>
 
-                        {/* Defect Remarks tied directly to line number */}
-                        {hasFailed && (
-                          <div className="animate-slide-down">
+                        {/* Defect Remarks and Photo tied directly to line number */}
+                        {(ans === "N" || ans === "R" || ans === "M") && (
+                          <div className="animate-slide-down space-y-2 p-3 bg-rose-50 border border-rose-200 rounded-xl">
                             <input
                               type="text"
                               required
                               value={remarks[item.id] || ""}
                               onChange={(e) => handleRemarkChange(item.id, e.target.value)}
-                              placeholder="🚨 REQUIRED: Describe the failure details for this line item..."
-                              className="w-full px-3 py-2 text-xs bg-rose-50 border border-rose-200 text-rose-900 rounded-lg placeholder-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                              placeholder="🚨 REQUIRED: Describe the failure details..."
+                              className="w-full px-3 py-2 text-xs border border-rose-200 text-rose-900 rounded-lg placeholder-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
                             />
+                            
+                            <div className="flex items-center gap-3">
+                              <label className="cursor-pointer bg-white border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors flex items-center gap-2">
+                                📷 {uploadingPhotos[item.id] ? "Uploading..." : "Take Photo (Required)"}
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  capture="environment" 
+                                  className="hidden" 
+                                  onChange={(e) => handlePhotoUpload(item.id, e)} 
+                                  disabled={uploadingPhotos[item.id]}
+                                />
+                              </label>
+                              
+                              {photoUrls[item.id] && (
+                                <span className="text-xs text-emerald-700 font-bold flex items-center gap-1">
+                                  ✓ Photo attached
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

@@ -132,18 +132,18 @@ export const generateDefectReport = (defects: DefectRecord[], dateRange: {from: 
     }
     return [
       new Date(d.created_at).toLocaleDateString(),
-      d.asset_name,
+      d.asset_name || 'Unknown',
       d.item_label,
-      d.description,
+      d.description || '',
       d.status === 'resolved' ? 'Resolved' : 'Open',
-      d.assigned_to || 'Unassigned',
+      d.resolved_by || 'Unassigned',
       resTime
-    ];
+    ] as any;
   });
 
   autoTable(doc, {
     startY: 52,
-    head: [['Date', 'Asset', 'Item', 'Description', 'Status', 'Assigned To', 'Resolution Time']],
+    head: [['Date', 'Asset', 'Item', 'Description', 'Status', 'Resolved By', 'Resolution Time']],
     body: tableData,
     theme: 'grid',
     headStyles: { fillColor: [15, 23, 42], textColor: 255 },

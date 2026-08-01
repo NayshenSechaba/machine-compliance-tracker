@@ -11,23 +11,27 @@ import OperatorDetailsModal from "@/components/OperatorDetailsModal";
 import ComplianceHealthBar from "@/components/ComplianceHealthBar";
 import { useAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/auditLog";
+import { isDemoMode } from "@/lib/demoData";
+import { createAsset, createOperator, resolveDefect, updateAssetStatus } from "@/lib/supabase/queries";
 
 interface DashboardClientProps {
   initialAssets: Asset[];
   initialCompliance: ComplianceItem[];
   initialOperators: Operator[];
+  initialDefects?: DefectRecord[];
 }
 
 export default function DashboardClient({
   initialAssets,
   initialCompliance,
   initialOperators,
+  initialDefects = [],
 }: DashboardClientProps) {
   const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [operators, setOperators] = useState<Operator[]>(initialOperators);
   const [compliance, setCompliance] = useState<ComplianceItem[]>(initialCompliance);
-  const [defects, setDefects] = useState<DefectRecord[]>([]);
+  const [defects, setDefects] = useState<DefectRecord[]>(initialDefects);
 
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
@@ -40,6 +44,7 @@ export default function DashboardClient({
 
   // Load custom assets, operators, and defects from local storage
   useEffect(() => {
+    if (!isDemoMode()) return;
     const storedAssets = localStorage.getItem("ops_gate_assets");
     if (storedAssets) {
       try {
@@ -81,19 +86,24 @@ export default function DashboardClient({
   }, [initialAssets, initialOperators]);
 
   // Handle Save Asset
-  const handleSaveAsset = (newAsset: Omit<Asset, "id" | "status">) => {
-    const registered: Asset = {
-      ...newAsset,
-      id: `custom-asset-${Date.now()}`,
-      status: "in_service",
-    };
-
-    const updated = [...assets, registered];
-    setAssets(updated);
-
-    // Save custom assets to local storage
-    const customOnly = updated.filter((a) => a.id.startsWith("custom-asset-"));
-    localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+  const handleSaveAsset = async (newAsset: Omit<Asset, "id" | "status">) => {
+    let registered: Asset;
+    if (isDemoMode()) {
+      registered = {
+        ...newAsset,
+        id: `custom-asset-${Date.now()}`,
+        status: "in_service",
+      };
+      const updated = [...assets, registered];
+      setAssets(updated);
+      const customOnly = updated.filter((a) => a.id.startsWith("custom-asset-"));
+      localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+    } else {
+      const res = await createAsset({ ...newAsset, status: "in_service", org_id: user?.orgId } as any);
+      if (!res) return;
+      registered = res;
+      setAssets((prev) => [...prev, registered]);
+    }
 
     // Audit log
     logAuditEvent({
@@ -108,18 +118,23 @@ export default function DashboardClient({
   };
 
   // Handle Save Operator
-  const handleSaveOperator = (newOperator: Omit<Operator, "id">) => {
-    const registered: Operator = {
-      ...newOperator,
-      id: `custom-op-${Date.now()}`,
-    };
-
-    const updated = [...operators, registered];
-    setOperators(updated);
-
-    // Save custom operators to local storage
-    const customOnly = updated.filter((o) => o.id.startsWith("custom-op-"));
-    localStorage.setItem("ops_gate_operators", JSON.stringify(customOnly));
+  const handleSaveOperator = async (newOperator: Omit<Operator, "id">) => {
+    let registered: Operator;
+    if (isDemoMode()) {
+      registered = {
+        ...newOperator,
+        id: `custom-op-${Date.now()}`,
+      };
+      const updated = [...operators, registered];
+      setOperators(updated);
+      const customOnly = updated.filter((o) => o.id.startsWith("custom-op-"));
+      localStorage.setItem("ops_gate_operators", JSON.stringify(customOnly));
+    } else {
+      const res = await createOperator({ ...newOperator, org_id: user?.orgId } as any);
+      if (!res) return;
+      registered = res;
+      setOperators((prev) => [...prev, registered]);
+    }
 
     // Audit log
     logAuditEvent({
@@ -158,7 +173,7 @@ export default function DashboardClient({
   };
 
   // Resolve a defect log
-  const handleResolveDefect = (defectId: string) => {
+  const handleResolveDefect = async (defectId: string) => {
     const updatedDefects = defects.map((def) => {
       if (def.id === defectId) {
         return { ...def, status: "resolved" as const, resolved_at: new Date().toISOString() };
@@ -167,7 +182,12 @@ export default function DashboardClient({
     });
 
     setDefects(updatedDefects);
-    localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
+
+    if (isDemoMode()) {
+      localStorage.setItem("ops_gate_defects", JSON.stringify(updatedDefects));
+    } else {
+      await resolveDefect(defectId, user?.id || "");
+    }
 
     // Audit log
     const resolvedDef = defects.find((d) => d.id === defectId);
@@ -199,9 +219,12 @@ export default function DashboardClient({
         });
         setAssets(updatedAssets);
 
-        // Save custom assets update to local storage
-        const customOnly = updatedAssets.filter((a) => a.id.startsWith("custom-asset-"));
-        localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+        if (isDemoMode()) {
+          const customOnly = updatedAssets.filter((a) => a.id.startsWith("custom-asset-"));
+          localStorage.setItem("ops_gate_assets", JSON.stringify(customOnly));
+        } else {
+          await updateAssetStatus(assetId, "in_service");
+        }
       }
     }
   };
@@ -210,7 +233,7 @@ export default function DashboardClient({
   const handleAssignMechanic = (defectId: string, mechanicName: string) => {
     const updatedDefects = defects.map((def) => {
       if (def.id === defectId) {
-        return { ...def, assigned_to: mechanicName };
+        return { ...def, resolved_by: mechanicName };
       }
       return def;
     });
@@ -228,7 +251,7 @@ export default function DashboardClient({
         action: "assigned",
         actor_name: user?.fullName || "System",
         actor_role: user?.role || "unknown",
-        details: { assigned_to: mechanicName, asset_name: assignedDef.asset_name },
+        details: { resolved_by: mechanicName, asset_name: assignedDef.asset_name },
       });
     }
   };
@@ -414,9 +437,9 @@ export default function DashboardClient({
                     <p className="text-xs text-slate-600 font-mono italic">
                       Fault: {def.description}
                     </p>
-                    {def.assigned_to ? (
+                    {def.resolved_by ? (
                       <p className="text-[10px] text-emerald-700 font-mono font-semibold">
-                        🛠️ Assigned to: {def.assigned_to}
+                        🛠️ Assigned to: {def.resolved_by}
                       </p>
                     ) : (
                       !isResolved && (

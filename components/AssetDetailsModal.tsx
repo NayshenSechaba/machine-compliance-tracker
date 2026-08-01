@@ -147,8 +147,8 @@ export default function AssetDetailsModal({ asset, isOpen, onClose }: AssetDetai
                           </span>
                         </div>
                         <p className="text-slate-600 font-mono italic">"{def.description}"</p>
-                        {def.assigned_to && (
-                          <p className="text-[9px] text-emerald-700 font-mono">Assigned Mechanic: {def.assigned_to}</p>
+                        {def.resolved_by && (
+                          <p className="text-[9px] text-emerald-700 font-mono">Assigned Mechanic: {def.resolved_by}</p>
                         )}
                       </div>
                     );

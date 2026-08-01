@@ -1,6 +1,6 @@
 import { Asset, ComplianceItem, Operator } from "./types";
 
-export const isDemoMode = () => true;
+export const isDemoMode = () => false;
 
 export const demoAssets: Asset[] = [
   {

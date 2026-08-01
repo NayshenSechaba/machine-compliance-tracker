@@ -121,13 +121,12 @@ export default function ReportsClient({
       resolvedDate.setDate(resolvedDate.getDate() + 1 + Math.floor(Math.random() * 5));
       samples.push({
         id: `sample-defect-${i}`,
-        inspection_id: `sample-insp-${i}`,
+        event_id: `sample-insp-${i}`,
         asset_id: assets[Math.floor(Math.random() * Math.min(assets.length, 3))]?.id || "asset-1",
         asset_name: assets[Math.floor(Math.random() * Math.min(assets.length, 3))]?.name || "Fleet Vehicle",
-        item_id: `item-${i}`,
         item_label: label,
         description: `${label} — failed during inspection`,
-        assigned_to: isResolved ? "Workshop Team" : (Math.random() > 0.5 ? "Workshop Team" : null),
+        resolved_by: isResolved ? "Workshop Team" : (Math.random() > 0.5 ? "Workshop Team" : null),
         status: isResolved ? "resolved" : "open",
         created_at: d.toISOString(),
         resolved_at: isResolved ? resolvedDate.toISOString() : null,
@@ -430,9 +429,9 @@ export default function ReportsClient({
                 </button>
                 <button
                   onClick={() => {
-                    const headers = "Date,Asset,Item,Description,Status,Assigned To,Resolved At\n";
+                    const headers = "Date,Asset,Item,Description,Status,Resolved By,Resolved At\n";
                     const rows = displayDefects.map(d =>
-                      `${new Date(d.created_at).toLocaleDateString()},${d.asset_name},${d.item_label},"${d.description}",${d.status},${d.assigned_to || ""},${d.resolved_at ? new Date(d.resolved_at).toLocaleDateString() : ""}`
+                      `${new Date(d.created_at).toLocaleDateString()},${d.asset_name},${d.item_label},"${d.description}",${d.status},${d.resolved_by || ""},${d.resolved_at ? new Date(d.resolved_at).toLocaleDateString() : ""}`
                     ).join("\n");
                     const blob = new Blob([headers + rows], { type: "text/csv" });
                     const url = URL.createObjectURL(blob);

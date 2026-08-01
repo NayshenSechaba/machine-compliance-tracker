@@ -146,6 +146,33 @@ create policy "read own org" on organisations
   for select using (id = current_org_id());
 
 -- ---------------------------------------------------------------------------
+-- 5. DEFECTS — issues found during checklists, managed by maintenance
+-- ---------------------------------------------------------------------------
+create type defect_status as enum ('open', 'in_progress', 'resolved');
+
+create table defects (
+  id uuid primary key default uuid_generate_v4(),
+  org_id uuid not null references organisations(id) on delete cascade,
+  event_id uuid references events(id) on delete cascade,
+  asset_id uuid not null references assets(id) on delete cascade,
+  item_label text not null,               -- The checklist item that failed
+  description text,                       -- Driver's notes
+  photo_url text,                         -- Supabase Storage path
+  status defect_status not null default 'open',
+  resolved_by uuid references operators(id) on delete set null,
+  resolved_at timestamptz,
+  resolution_notes text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_defects_asset on defects (asset_id, status);
+create index idx_defects_event on defects (event_id);
+
+alter table defects enable row level security;
+create policy "org isolation - defects" on defects
+  for all using (org_id = current_org_id()) with check (org_id = current_org_id());
+
+-- ---------------------------------------------------------------------------
 -- Storage bucket for checklist photos and compliance documents
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public) values ('ops-media', 'ops-media', false)

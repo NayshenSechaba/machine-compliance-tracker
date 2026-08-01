@@ -108,16 +108,17 @@ export type InspectionRecord = {
 
 export type DefectRecord = {
   id: string;
-  inspection_id: string;
+  event_id?: string | null;
   asset_id: string;
-  asset_name: string;
-  item_id: string;
+  asset_name?: string;
   item_label: string;
-  description: string;
-  assigned_to?: string | null;
-  status: "open" | "resolved";
-  created_at: string;
+  description: string | null;
+  photo_url?: string | null;
+  status: "open" | "in_progress" | "resolved";
+  resolved_by?: string | null;
   resolved_at?: string | null;
+  resolution_notes?: string | null;
+  created_at: string;
 };
 
 export const CHECKLIST_COMPONENTS = [
